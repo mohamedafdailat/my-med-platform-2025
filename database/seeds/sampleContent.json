@@ -1,0 +1,46 @@
+{
+  "videos": [
+    {
+      "title": "Anatomie - Système Nerveux",
+      "url": "https://storage.googleapis.com/your-bucket/videos/sample-neuro.mp4",
+      "thumbnail": "https://storage.googleapis.com/your-bucket/thumbnails/sample-neuro.jpg",
+      "createdAt": "2025-06-15T14:00:00Z"
+    },
+    {
+      "title": "Pharmacologie - Antibiotiques",
+      "url": "https://storage.googleapis.com/your-bucket/videos/sample-antibiotics.mp4",
+      "thumbnail": "",
+      "createdAt": "2025-06-15T14:00:00Z"
+    }
+  ],
+  "quizzes": [
+    {
+      "title": "Quiz sur l'Anatomie",
+      "questions": [
+        {
+          "text": "Quel est le rôle du cervelet ?",
+          "options": ["Contrôle de la vision", "Coordination des mouvements", "Régulation cardiaque", "Mémoire"],
+          "correctAnswer": "Coordination des mouvements"
+        },
+        {
+          "text": "Où se trouve le nerf sciatique ?",
+          "options": ["Bras", "Jambe", "Cou", "Dos"],
+          "correctAnswer": "Jambe"
+        }
+      ],
+      "createdAt": "2025-06-15T14:00:00Z"
+    }
+  ],
+  "flashcards": [
+    {
+      "question": "Quel est l'os le plus long du corps humain ?",
+      "answer": "Fémur",
+      "createdAt": "2025-06-15T14:00:00Z"
+    },
+    {
+      "question": "Quelle est la fonction principale des globules rouges ?",
+      "answer": "Transport de l'oxygène",
+      "createdAt": "2025-06-15T14:00:00Z"
+    }
+  ]
+} 

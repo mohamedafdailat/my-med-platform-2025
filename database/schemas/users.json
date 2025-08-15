@@ -1,0 +1,34 @@
+{
+  "collection": "users",
+  "schema": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "description": "Nom complet de l'utilisateur"
+    },
+    "email": {
+      "type": "string",
+      "required": true,
+      "description": "Adresse email de l'utilisateur"
+    },
+    "role": {
+      "type": "string",
+      "required": true,
+      "enum": ["student", "teacher", "admin"],
+      "default": "student",
+      "description": "Rôle de l'utilisateur"
+    },
+    "createdAt": {
+      "type": "timestamp",
+      "required": true,
+      "description": "Date de création du compte"
+    }
+  },
+  "indexes": [
+    {
+      "field": "email",
+      "type": "ascending",
+      "unique": true
+    }
+  ]
+}

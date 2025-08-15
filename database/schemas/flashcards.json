@@ -1,0 +1,26 @@
+{
+  "collection": "flashcards",
+  "schema": {
+    "question": {
+      "type": "string",
+      "required": true,
+      "description": "Question de la flashcard"
+    },
+    "answer": {
+      "type": "string",
+      "required": true,
+      "description": "Réponse de la flashcard"
+    },
+    "createdAt": {
+      "type": "timestamp",
+      "required": true,
+      "description": "Date de création de la flashcard"
+    }
+  },
+  "indexes": [
+    {
+      "field": "createdAt",
+      "type": "descending"
+    }
+  ]
+}

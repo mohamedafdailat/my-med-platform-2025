@@ -1,0 +1,61 @@
+/* Styles spécifiques aux composants */
+.header {
+  @apply bg-blue-600 text-white shadow-md sticky top-0 z-50;
+}
+
+.footer {
+  @apply bg-gray-800 text-white py-6;
+}
+
+.sidebar {
+  @apply fixed top-0 left-0 h-full bg-gray-900 text-white w-64 transform transition-transform duration-300 ease-in-out;
+}
+
+.video-player {
+  @apply relative w-full;
+}
+
+.video-player video {
+  @apply absolute top-0 left-0 w-full h-full rounded-md;
+}
+
+.chatbot-message-user {
+  @apply max-w-xs p-3 rounded-lg bg-blue-500 text-white;
+}
+
+.chatbot-message-bot {
+  @apply max-w-xs p-3 rounded-lg bg-gray-200 text-gray-800;
+}
+
+.quiz-option {
+  @apply bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 transition duration-200;
+}
+
+.flashcard {
+  @apply w-full h-64 bg-white rounded-lg shadow-md cursor-pointer;
+}
+
+.upload-form input[type="file"] {
+  @apply mt-1 w-full px-3 py-2 border border-gray-300 rounded-md;
+}
+
+/* Mode sombre pour les composants */
+.dark .header {
+  @apply bg-gray-900;
+}
+
+.dark .footer {
+  @apply bg-gray-900;
+}
+
+.dark .sidebar {
+  @apply bg-gray-800;
+}
+
+.dark .flashcard {
+  @apply bg-gray-700 text-white;
+}
+
+.dark .chatbot-message-bot {
+  @apply bg-gray-600 text-white;
+}

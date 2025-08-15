@@ -1,0 +1,48 @@
+{
+  "collection": "quizzes",
+  "schema": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "description": "Titre du quiz"
+    },
+    "questions": {
+      "type": "array",
+      "required": true,
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "required": true,
+            "description": "Texte de la question"
+          },
+          "options": {
+            "type": "array",
+            "required": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Options de réponse"
+          },
+          "correctAnswer": {
+            "type": "string",
+            "required": true,
+            "description": "Réponse correcte"
+          }
+        }
+      }
+    },
+    "createdAt": {
+      "type": "timestamp",
+      "required": true,
+      "description": "Date de création du quiz"
+    }
+  },
+  "indexes": [
+    {
+      "field": "createdAt",
+      "type": "descending"
+    }
+  ]
+}

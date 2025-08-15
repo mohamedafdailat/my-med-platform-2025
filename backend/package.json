@@ -1,0 +1,27 @@
+{
+  "name": "medplatform-maroc-backend",
+  "version": "1.0.0",
+  "description": "Backend pour la plateforme d'apprentissage médical MedPlatform Maroc",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.0.1",
+    "express-validator": "^7.2.1",
+    "firebase-admin": "^12.7.0",
+    "helmet": "^8.1.0",
+    "joi": "^17.9.2",
+    "multer": "^2.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "author": "MedPlatform Maroc Team",
+  "license": "MIT"
+}

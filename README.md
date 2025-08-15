@@ -1,70 +1,90 @@
-# Getting Started with Create React App
+MedPlatform Maroc
+MedPlatform Maroc est une plateforme éducative conçue pour les étudiants en médecine au Maroc, offrant des cours interactifs, des vidéos, des quiz, des flashcards, et des outils d'intelligence artificielle (chatbot, tuteur, recommandations personnalisées). La plateforme prend en charge le français et l'arabe pour une expérience utilisateur accessible.
+Fonctionnalités principales
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Authentification : Inscription/connexion sécurisée via Firebase Authentication.
+Gestion des utilisateurs : Rôles (étudiant, enseignant, admin) avec gestion des profils.
+Contenu éducatif : Vidéos, quiz, et flashcards stockés dans Firebase Firestore et Storage.
+Outils IA : Chatbot et tuteur alimentés par une API externe (ex. OpenAI) pour des réponses et explications médicales.
+Multilinguisme : Interface et messages en français et arabe.
+Tableau de bord : Suivi des progrès et recommandations personnalisées.
+Administration : Gestion des utilisateurs et du contenu pour les admins.
 
-## Available Scripts
+Structure du projet
+my-med-platform/
+├── frontend/              # Application React
+├── backend/               # API Node.js/Express
+├── database/              # Schémas et données initiales Firestore
+├── docs/                  # Documentation (API, Setup, Deployment, User Guide)
+├── .gitignore             # Fichiers/dossiers ignorés par Git
+├── README.md              # Introduction au projet
+└── package.json           # Dépendances et scripts globaux
 
-In the project directory, you can run:
+Technologies
 
-### `npm start`
+Frontend : React, Tailwind CSS, Firebase SDK
+Backend : Node.js, Express, Firebase Admin SDK
+Base de données : Firebase Firestore
+Stockage : Firebase Storage
+IA : API OpenAI (ou alternative)
+Autres : Nodemailer (emails), Multer (uploads), Joi (validation)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Installation
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Cloner le dépôt :
+git clone <repository-url>
+cd my-med-platform
 
-### `npm test`
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Installer les dépendances globales :
+npm install
 
-### `npm run build`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Configurer le frontend :
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Suivez frontend/README.md ou docs/SETUP.md pour les instructions.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
 
-### `npm run eject`
+Configurer le backend :
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Suivez backend/README.md ou docs/SETUP.md pour les instructions.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Configurer Firebase :
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Créez un projet Firebase et configurez Firestore, Storage, et Authentication.
+Appliquez les règles Firestore/Storage décrites dans docs/SETUP.md.
 
-## Learn More
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Initialiser la base de données :
+node database/seed.js
 
-To learn React, check out the [React documentation](https://reactjs.org/).
 
-### Code Splitting
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Déploiement
 
-### Analyzing the Bundle Size
+Frontend et backend peuvent être déployés sur Vercel.
+Suivez docs/DEPLOYMENT.md pour les instructions détaillées.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Documentation
 
-### Making a Progressive Web App
+API : docs/API.md (détails des endpoints)
+Installation : docs/SETUP.md
+Déploiement : docs/DEPLOYMENT.md
+Guide utilisateur : docs/USER_GUIDE.md
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+Contribution
 
-### Advanced Configuration
+Forkez le dépôt.
+Créez une branche pour votre fonctionnalité (git checkout -b feature/nom-fonctionnalite).
+Commitez vos changements (git commit -m "Ajout de fonctionnalité").
+Poussez votre branche (git push origin feature/nom-fonctionnalite).
+Ouvrez une Pull Request.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+Support
 
-### Deployment
+Email : support@medplatform.ma
+Issues : Créez un ticket sur GitHub.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Licence
+ISC © MedPlatform Team

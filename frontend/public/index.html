@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="description" content="Plateforme d'apprentissage pour étudiants en médecine au Maroc - Vidéos, Quiz et Flashcards avec IA" />
+    <meta name="keywords" content="médecine, étudiant, Maroc, formation, vidéos, quiz, flashcards, IA" />
+    <meta name="author" content="MedPlatform Maroc" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://medplatform-maroc.com/" />
+    <meta property="og:title" content="MedPlatform Maroc - Formation Médicale Interactive" />
+    <meta property="og:description" content="Plateforme d'apprentissage pour étudiants en médecine avec IA, vidéos et quiz interactifs" />
+    <meta property="og:image" content="%PUBLIC_URL%/logo192.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://medplatform-maroc.com/" />
+    <meta property="twitter:title" content="MedPlatform Maroc - Formation Médicale Interactive" />
+    <meta property="twitter:description" content="Plateforme d'apprentissage pour étudiants en médecine avec IA, vidéos et quiz interactifs" />
+    <meta property="twitter:image" content="%PUBLIC_URL%/logo192.png" />
+
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a'
+                        },
+                        secondary: {
+                            500: '#10b981',
+                            600: '#059669'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <title>MedPlatform Maroc - Formation Médicale Interactive</title>
+</head>
+<body class="font-sans antialiased bg-gray-50">
+    <noscript>
+        <div class="flex items-center justify-center min-h-screen bg-red-50">
+            <div class="text-center p-8">
+                <h1 class="text-2xl font-bold text-red-800 mb-4">JavaScript requis</h1>
+                <p class="text-red-600">
+                    Vous devez activer JavaScript pour utiliser MedPlatform Maroc.
+                    <br>
+                    Please enable JavaScript to use MedPlatform Morocco.
+                </p>
+            </div>
+        </div>
+    </noscript>
+    
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <h2 class="text-xl font-semibold text-gray-800">Chargement...</h2>
+            <p class="text-gray-600">MedPlatform Maroc</p>
+        </div>
+    </div>
+    
+    <div id="root"></div>
+    
+    <!-- Hide loading screen when React loads -->
+    <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const loadingScreen = document.getElementById('loading-screen');
+                if (loadingScreen) {
+                    loadingScreen.style.display = 'none';
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

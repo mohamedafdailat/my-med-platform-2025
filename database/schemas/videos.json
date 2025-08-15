@@ -1,0 +1,31 @@
+{
+  "collection": "videos",
+  "schema": {
+    "title": {
+      "type": "string",
+      "required": true,
+      "description": "Titre de la vidéo"
+    },
+    "url": {
+      "type": "string",
+      "required": true,
+      "description": "URL de la vidéo dans Firebase Storage"
+    },
+    "thumbnail": {
+      "type": "string",
+      "required": false,
+      "description": "URL de la vignette (optionnel)"
+    },
+    "createdAt": {
+      "type": "timestamp",
+      "required": true,
+      "description": "Date de création de la vidéo"
+    }
+  },
+  "indexes": [
+    {
+      "field": "createdAt",
+      "type": "descending"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Personnalisations Tailwind */
+@layer base {
+  h1 {
+    @apply text-4xl font-bold tracking-tight;
+  }
+  h2 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+  h3 {
+    @apply text-xl font-semibold;
+  }
+}
+
+/* Support pour le mode sombre */
+@layer utilities {
+  .dark .bg-white {
+    @apply bg-gray-800;
+  }
+  .dark .text-gray-600 {
+    @apply text-gray-300;
+  }
+  .dark .border-gray-300 {
+    @apply border-gray-600;
+  }
+}
+
+/* Animation pour les flashcards */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
