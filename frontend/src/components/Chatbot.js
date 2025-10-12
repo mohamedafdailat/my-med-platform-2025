@@ -10,9 +10,8 @@ const Chatbot = () => {
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
 
-  // Clé API intégrée (ne pas exposer en production - utilisez des variables d'environnement)
-  const API_KEY = '***REMOVED***';
-
+  // Utilise une variable d'environnement pour la clé API (plus sécurisé)
+  const API_KEY = process.env.REACT_APP_GROQ_API_KEY || '';
   // Message d'accueil mémorisé
   const welcomeMessage = useMemo(() => ({
     id: 'welcome',
@@ -80,23 +79,11 @@ const Chatbot = () => {
           "Authorization": `Bearer ${API_KEY}`,
         },
         body: JSON.stringify({
-          model: "llama3-8b-8192",
+          model: "llama-3.1-8b-instant", // Modèle supporté (remplacement de llama3-8b-8192)
           messages: [
             { 
               role: "system", 
-              content: `Tu es DocBuddy, un assistant médical bienveillant pour étudiants en médecine.
-
-RÈGLES STRICTES:
-- Réponds TOUJOURS en français
-- Sois concis (2-3 phrases maximum)
-- Commence par "Salut !" ou "Hello !" pour les nouvelles conversations
-- Donne des explications médicales simples et précises
-- Termine par "Ça aide ?" ou "Plus de questions ?"
-- Ton amical mais professionnel
-- IMPORTANT: Ne donne jamais de diagnostics médicaux définitifs
-- Rappelle toujours de consulter un professionnel de santé si nécessaire
-
-Exemple: "Salut ! L'anatomie est l'étude de la structure du corps humain et de ses organes. C'est la base pour comprendre le fonctionnement de notre corps. Ça aide ?"` 
+              content: `Tu es DocBuddy, un assistant médical sympa, comme un ami médecin qui aide les étudiants. Parle de façon décontractée mais précise, avec des réponses courtes et pratiques. Adapte ta réponse selon la langue de l'utilisateur (français ou arabe).` 
             },
             ...conversationHistory,
             { role: "user", content: currentInput },

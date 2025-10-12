@@ -1,14 +1,14 @@
-const express = require('express');
-const cors = require('cors');
-const { auth, db, storage } = require('./src/config/firebase.js');
-const dotenv = require('dotenv');
-const authRoutes = require('./src/routes/auth');
-const videoRoutes = require('./src/routes/videos');
-const quizRoutes = require('./src/routes/quizzes');
-const courseRoutes = require('./src/routes/courses');
-const flashcardRoutes = require('./src/routes/flashcards');
-const aiRoutes = require('./src/routes/ai');
-const userRoutes = require('./src/routes/users');
+import express from 'express';
+import cors from 'cors';
+import { auth, db, storage } from './src/config/firebase.js';
+import dotenv from 'dotenv';
+import authRoutes from './src/routes/auth.js';
+import videoRoutes from './src/routes/videos.js';
+import quizRoutes from './src/routes/quizzes.js';
+import courseRoutes from './src/routes/courses.js';
+import flashcardRoutes from './src/routes/flashcards.js';
+import aiRoutes from './src/routes/ai.js';
+import userRoutes from './src/routes/users.js';
 
 dotenv.config();
 
@@ -32,9 +32,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.get('/', (req, res) => {
-  res.json({ message: 'Bienvenue sur MedPlatform Maroc API' });
-});
 app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
 });
