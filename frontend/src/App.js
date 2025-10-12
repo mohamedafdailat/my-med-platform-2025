@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, Component, useMemo } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { PaymentProvider, PaymentErrorDisplay, PaymentSuccessDisplay } from './contexts/PaymentContext';
@@ -153,12 +153,18 @@ const PaymentNotifications = () => {
   );
 };
 
+// Composant HealthCheck pour Railway
+function HealthCheck() {
+  return <div>{JSON.stringify({status: "ok", timestamp: new Date().toISOString()})}</div>;
+}
+
 const AppRoutes = () => {
   const { language } = useLanguage();
 
   const routes = useMemo(() => ({
     public: [
       { path: '/', element: <Home /> },
+      { path: '/health', element: <HealthCheck /> }, // Ajouté pour Railway
       { path: '/login', element: <Login /> },
       { path: '/register', element: <Register /> },
       { path: '/forgot-password', element: <ForgotPassword /> },
