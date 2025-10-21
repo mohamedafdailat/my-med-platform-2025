@@ -7,7 +7,23 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { body, validationResult } from 'express-validator';
 
-const serviceAccount = JSON.parse(await readFile(new URL('./serviceAccountKey.json', import.meta.url), 'utf8'));
+// Configuration Firebase pour Railway
+let serviceAccount;
+
+if (process.env.NODE_ENV === 'production') {
+  // En production (Railway), utiliser les variables d'environnement
+  serviceAccount = {
+    type: "service_account",
+    project_id: process.env.FIREBASE_PROJECT_ID,
+    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    client_email: process.env.FIREBASE_CLIENT_EMAIL,
+  };
+} else {
+  // En développement local, utiliser le fichier JSON
+  serviceAccount = JSON.parse(
+    await readFile(new URL('./serviceAccountKey.json', import.meta.url), 'utf8')
+  );
+}
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -16,11 +32,64 @@ admin.initializeApp({
 const db = getFirestore();
 const app = express();
 
-// Middleware
-app.use(cors({ origin: 'http://localhost:3000' }));
+// CORS Configuration - Support pour Railway
+const allowedOrigins = [
+  'http://localhost:3000',
+  process.env.FRONTEND_URL,
+  /\.railway\.app$/, // Permet tous les domaines Railway
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Autoriser les requêtes sans origine (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') return allowed === origin;
+      if (allowed instanceof RegExp) return allowed.test(origin);
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Non autorisé par CORS'));
+    }
+  },
+  credentials: true,
+}));
+
 app.use(express.json());
 app.use(helmet());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(rateLimit({ 
+  windowMs: 15 * 60 * 1000, 
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
+
+// Health check endpoint pour Railway
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Medical Platform API',
+    version: '1.0.0',
+    endpoints: [
+      'GET /health',
+      'GET /api/quizzes',
+      'GET /api/videos',
+      'GET /api/courses'
+    ]
+  });
+});
 
 // Authentication Middleware
 const authenticate = async (req, res, next) => {
@@ -230,8 +299,28 @@ app.post('/api/courses', authenticate, [
   }
 });
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ 
+    error: 'Erreur serveur', 
+    message: process.env.NODE_ENV === 'production' ? 'Une erreur est survenue' : err.message 
+  });
+});
+
 // Démarrer le serveur
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Serveur démarré sur http://localhost:${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Serveur démarré sur le port ${PORT}`);
+  console.log(`📝 Environnement: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔥 Firebase Project: ${process.env.FIREBASE_PROJECT_ID || 'local'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM reçu, arrêt gracieux du serveur...');
+  server.close(() => {
+    console.log('Serveur arrêté');
+    process.exit(0);
+  });
 });
