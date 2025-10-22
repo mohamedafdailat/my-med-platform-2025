@@ -1,17 +1,61 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-
 const app = express();
 
-// Enable CORS for your React app
+// CORS Configuration - Support pour Railway
+const allowedOrigins = [
+  'http://localhost:3000',
+  process.env.FRONTEND_URL,
+  /\.railway\.app$/, // Permet tous les domaines Railway
+].filter(Boolean);
+
 app.use(cors({
-  origin: 'http://localhost:3000', // Your React app URL
-  credentials: true
+  origin: (origin, callback) => {
+    // Autoriser les requêtes sans origine (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') return allowed === origin;
+      if (allowed instanceof RegExp) return allowed.test(origin);
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Non autorisé par CORS'));
+    }
+  },
+  credentials: true,
 }));
 
 app.use(express.json());
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    service: 'DocBuddy Chatbot Server',
+    version: '1.0.0',
+    endpoints: [
+      'GET /health',
+      'GET /session'
+    ]
+  });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const hasApiKey = !!process.env.OPENAI_API_KEY;
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    openai_configured: hasApiKey
+  });
+});
+
+// Session endpoint
 app.get('/session', async (req, res) => {
   try {
     console.log('Creating new realtime session...');
@@ -37,7 +81,7 @@ app.get('/session', async (req, res) => {
     });
 
     console.log('OpenAI response status:', response.status);
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenAI API error:', errorText);
@@ -46,7 +90,7 @@ app.get('/session', async (req, res) => {
 
     const data = await response.json();
     console.log('Session created successfully');
-    
+
     if (!data.client_secret) {
       throw new Error('Invalid response from OpenAI: missing client_secret');
     }
@@ -54,28 +98,41 @@ app.get('/session', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('Server error:', error.message);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to generate ephemeral key',
-      details: error.message 
+      details: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
     });
   }
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ 
+    error: 'Erreur serveur', 
+    message: process.env.NODE_ENV === 'production' ? 'Une erreur est survenue' : err.message 
+  });
 });
 
 const PORT = process.env.PORT || 3001;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Session endpoint: http://localhost:${PORT}/session`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Chatbot server running on port ${PORT}`);
+  console.log(`📝 Environnement: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 Session endpoint: http://localhost:${PORT}/session`);
   
   if (!process.env.OPENAI_API_KEY) {
     console.warn('⚠️  WARNING: OPENAI_API_KEY not found in environment variables');
   } else {
     console.log('✅ OpenAI API key found');
   }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM reçu, arrêt gracieux du serveur...');
+  server.close(() => {
+    console.log('Serveur arrêté');
+    process.exit(0);
+  });
 });
