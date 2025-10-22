@@ -6,13 +6,13 @@ const Chatbot = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [retryCount, setRetryCount] = useState(0);
   const messagesEndRef = useRef(null);
-  const abortControllerRef = useRef(null);
 
-  // Utilise une variable d'environnement pour la clé API (plus sécurisé)
-  const API_KEY = process.env.REACT_APP_GROQ_API_KEY || '';
-  // Message d'accueil mémorisé
+  // Utilise la variable d'environnement pour la clé API Groq
+  const API_KEY = process.env.REACT_APP_GROQ_API_KEY;
+  const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
+  // Message d'accueil
   const welcomeMessage = useMemo(() => ({
     id: 'welcome',
     sender: 'bot',
@@ -27,7 +27,7 @@ const Chatbot = () => {
     }
   }, [welcomeMessage, messages.length]);
 
-  // Fonction pour envoyer un message avec gestion d'erreurs améliorée
+  // Fonction pour envoyer un message
   const sendMessage = useCallback(async (e) => {
     e?.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -35,7 +35,7 @@ const Chatbot = () => {
     const currentInput = input.trim();
     setInput('');
     setError('');
-    
+
     const userMessage = {
       id: Date.now(),
       sender: 'user',
@@ -55,15 +55,12 @@ const Chatbot = () => {
     };
     setMessages(prev => [...prev, loadingMessage]);
 
-    // Annuler la requête précédente si elle existe
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    abortControllerRef.current = new AbortController();
-
     try {
-      // Préparer l'historique de conversation (limité aux 10 derniers messages)
+      if (!API_KEY) {
+        throw new Error('Clé API Groq manquante. Vérifie REACT_APP_GROQ_API_KEY dans .env');
+      }
+
+      // Préparer l'historique de conversation
       const conversationHistory = messages
         .filter(m => !m.isLoading && m.id !== 'welcome')
         .slice(-10)
@@ -72,46 +69,35 @@ const Chatbot = () => {
           content: m.text,
         }));
 
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
+      const response = await fetch(API_URL, {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${API_KEY}`,
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant", // Modèle supporté (remplacement de llama3-8b-8192)
+          model: 'llama-3.1-8b-instant', // Modèle de remplacement pour mixtral-8x7b-32768
           messages: [
-            { 
-              role: "system", 
-              content: `Tu es DocBuddy, un assistant médical sympa, comme un ami médecin qui aide les étudiants. Parle de façon décontractée mais précise, avec des réponses courtes et pratiques. Adapte ta réponse selon la langue de l'utilisateur (français ou arabe).` 
+            {
+              role: 'system',
+              content: `Tu es DocBuddy, un assistant médical sympa pour étudiants en médecine. Réponds en français ou arabe selon la langue de l'utilisateur. Sois concis (2-3 phrases max), précis, et amical. Ne donne jamais de diagnostics définitifs. Termine par "Ça aide ?". Exemple : "Salut ! L'anatomie est l'étude de la structure du corps humain. C'est la base pour comprendre le fonctionnement du corps. Ça aide ?"`,
             },
             ...conversationHistory,
-            { role: "user", content: currentInput },
+            { role: 'user', content: currentInput },
           ],
           max_tokens: 250,
           temperature: 0.7,
-          stream: false,
         }),
-        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        
-        if (response.status === 401) {
-          throw new Error('Problème d\'authentification. Contactez l\'administrateur.');
-        } else if (response.status === 429) {
-          throw new Error('Limite de requêtes atteinte. Attendez quelques minutes.');
-        } else if (response.status === 503) {
-          throw new Error('Service temporairement indisponible. Réessayez dans un moment.');
-        } else {
-          throw new Error(errorData?.error?.message || `Erreur serveur: ${response.status}`);
-        }
+        const errorText = await response.text();
+        throw new Error(`Erreur serveur: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      const botResponseText = data.choices?.[0]?.message?.content;
-      
+      const botResponseText = data.choices[0]?.message?.content;
+
       if (!botResponseText) {
         throw new Error('Réponse vide du serveur');
       }
@@ -131,13 +117,7 @@ const Chatbot = () => {
         return updated;
       });
 
-      setRetryCount(0); // Reset retry count on success
-
     } catch (error) {
-      if (error.name === 'AbortError') {
-        return; // Ne pas traiter les requêtes annulées
-      }
-
       console.error('Erreur:', error);
       
       setMessages(prev => {
@@ -156,18 +136,10 @@ const Chatbot = () => {
       });
 
       setError(error.message);
-      
-      // Retry logic pour certaines erreurs
-      if ((error.message.includes('503') || error.message.includes('réseau')) && retryCount < 2) {
-        setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-          sendMessage();
-        }, 2000 * (retryCount + 1));
-      }
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, retryCount, API_KEY]);
+  }, [input, isLoading, messages]);
 
   // Gestion des touches
   const handleKeyPress = useCallback((e) => {
@@ -182,12 +154,10 @@ const Chatbot = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Nettoyage à la fermeture du composant
+  // Nettoyer à la fermeture
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      // Nettoyage si nécessaire
     };
   }, []);
 
@@ -197,7 +167,7 @@ const Chatbot = () => {
     setError('');
   }, [welcomeMessage]);
 
-  // Statistiques mémorisées
+  // Statistiques
   const stats = useMemo(() => {
     const validMessages = messages.filter(m => !m.isLoading && m.id !== 'welcome');
     return {
@@ -209,7 +179,7 @@ const Chatbot = () => {
 
   return (
     <>
-      {/* Bouton flottant avec indicateur de statut */}
+      {/* Bouton flottant */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`fixed bottom-6 right-6 w-14 h-14 text-white rounded-full shadow-lg transition-all duration-300 z-50 flex items-center justify-center ${
@@ -226,7 +196,7 @@ const Chatbot = () => {
 
       {isOpen && (
         <div className="fixed bottom-20 right-6 w-80 h-[500px] bg-white rounded-lg shadow-2xl flex flex-col border-2 border-gray-200 z-50">
-          {/* En-tête avec actions */}
+          {/* En-tête */}
           <div className="p-3 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold rounded-t-lg flex justify-between items-center">
             <div className="flex items-center space-x-2">
               <span>🤖 DocBuddy</span>
@@ -284,7 +254,7 @@ const Chatbot = () => {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Ex: Qu'est-ce que l'anatomie ?"
-                className="flex-1 border-2 border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                className="flex-1 border-2 border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-green-500"
                 disabled={isLoading}
                 maxLength={500}
               />

@@ -39,7 +39,8 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: [
       'GET /health',
-      'GET /session'
+      'GET /session',
+      'POST /chat'  // ← AJOUTE CETTE LIGNE
     ]
   });
 });
@@ -104,6 +105,70 @@ app.get('/session', async (req, res) => {
     });
   }
 });
+// Add this endpoint after the /session endpoint in chatbot-server/server.js
+
+// Text chat endpoint for frontend
+app.post('/chat', async (req, res) => {
+  try {
+    const { message, conversationHistory = [] } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not found in environment variables');
+    }
+
+    // Prepare messages for OpenAI
+    const messages = [
+      {
+        role: 'system',
+        content: 'Tu es DocBuddy, un assistant médical sympa, comme un ami médecin qui aide les étudiants. Parle de façon décontractée mais précise, avec des réponses courtes et pratiques. Adapte ta réponse selon la langue de l\'utilisateur (français ou arabe).'
+      },
+      ...conversationHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      })),
+      {
+        role: 'user',
+        content: message
+      }
+    ];
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: messages,
+        max_tokens: 300,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API error:', errorText);
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const botResponse = data.choices[0].message.content;
+
+    res.json({ response: botResponse });
+  } catch (error) {
+    console.error('Chat error:', error.message);
+    res.status(500).json({
+      error: 'Failed to process chat message',
+      details: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+    });
+  }
+});
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -114,7 +179,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8080; // Changed from 3001 to 8080
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Chatbot server running on port ${PORT}`);
   console.log(`📝 Environnement: ${process.env.NODE_ENV || 'development'}`);
