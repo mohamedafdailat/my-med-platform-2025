@@ -1,5 +1,5 @@
 # Use Node.js LTS version
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
@@ -18,12 +18,8 @@ COPY . .
 # Build the frontend application
 RUN npm run build
 
-# Install serve to run the static frontend
-RUN npm install -g serve
-
-# Expose the port for the backend (5000) and frontend (3000)
+# Expose the app port
 EXPOSE 5000
-EXPOSE 3000
 
-# Start both backend and frontend (using a custom script or multi-command)
-CMD sh -c "node backend/index.js & serve -s frontend/build -l 3000"
+# Start the backend. It serves /api routes and the compiled frontend build.
+CMD ["node", "backend/server.js"]

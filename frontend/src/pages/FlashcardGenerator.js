@@ -8,6 +8,7 @@ import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
 // ========================================
 // CONFIGURATION ET CONSTANTES
@@ -18,7 +19,6 @@ const CONFIG = {
   MAX_TEXT_LENGTH: 15000,
   MAX_CARDS: 25,
   AI_MODEL: 'grok-beta', // Nom correct du modèle xAI
-  XAI_API_URL: 'https://api.x.ai/v1/chat/completions',
   PDF_JS_CDN: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174',
 };
 
@@ -469,43 +469,23 @@ GÉNÈRE LES FLASHCARDS AU FORMAT JSON:`;
         
         console.log(`🚀 Tentative avec le modèle: ${modelName}`);
         
-        const response = await fetch(CONFIG.XAI_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.REACT_APP_XAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: modelName,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.8,
-            max_tokens: 6000,
-            response_format: { type: "json_object" }
-          })
+        const response = await api.post('/ai/xai-chat', {
+          model: modelName,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.8,
+          max_tokens: 6000,
+          response_format: { type: "json_object" }
         });
 
-        if (response.ok) {
-          console.log(`✅ Succès avec le modèle: ${modelName}`);
-          return await this.processAIResponse(response, setProgress);
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          lastError = new Error(`Erreur API xAI avec ${modelName} (${response.status}): ${errorData.error?.message || errorData.error || 'Modèle non disponible'}`);
-          console.warn(`⚠️ Échec avec ${modelName}:`, lastError.message);
-          
-          // Si c'est une erreur 404 (modèle non trouvé), continuer avec le suivant
-          if (response.status === 404) {
-            continue;
-          }
-          // Pour les autres erreurs, on peut aussi continuer
-          if (response.status >= 500) {
-            continue;
-          }
-        }
+        console.log(`✅ Succès avec le modèle: ${modelName}`);
+        return await this.processAIResponse(response.data, setProgress);
       } catch (modelError) {
-        lastError = modelError;
+        const status = modelError.response?.status;
+        const errorData = modelError.response?.data || {};
+        lastError = new Error(`Erreur API xAI avec ${modelName} (${status || 'network'}): ${errorData.error?.message || errorData.error || modelError.message}`);
         console.warn(`⚠️ Erreur avec ${modelName}:`, modelError.message);
         continue;
       }
@@ -516,8 +496,7 @@ GÉNÈRE LES FLASHCARDS AU FORMAT JSON:`;
     throw lastError || new Error('Tous les modèles xAI ont échoué. Vérifiez votre clé API sur https://console.x.ai.');
   }
 
-  static async processAIResponse(response, setProgress) {
-    const data = await response.json();
+  static async processAIResponse(data, setProgress) {
     const content = data.choices[0]?.message?.content;
 
     if (content) {
@@ -738,12 +717,6 @@ const FlashcardGenerator = ({ onDeckSaved, onClose }) => {
       return;
     }
     if (!selectedFile || !deckConfig.title.trim()) return;
-    
-    // Vérifier si la clé API est configurée
-    if (!process.env.REACT_APP_XAI_API_KEY) {
-      setError('❌ Clé API xAI manquante. Veuillez configurer REACT_APP_XAI_API_KEY dans vos variables d\'environnement.');
-      return;
-    }
     
     setIsProcessing(true);
     setCurrentStep('processing');

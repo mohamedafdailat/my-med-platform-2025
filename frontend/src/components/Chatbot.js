@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
+const CHATBOT_URL = (process.env.REACT_APP_CHATBOT_URL || 'http://localhost:8080').replace(/\/+$/, '');
+
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
@@ -7,10 +9,6 @@ const Chatbot = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
-
-  // Utilise la variable d'environnement pour la clé API Groq
-  const API_KEY = process.env.REACT_APP_GROQ_API_KEY;
-  const API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
   // Message d'accueil
   const welcomeMessage = useMemo(() => ({
@@ -56,10 +54,6 @@ const Chatbot = () => {
     setMessages(prev => [...prev, loadingMessage]);
 
     try {
-      if (!API_KEY) {
-        throw new Error('Clé API Groq manquante. Vérifie REACT_APP_GROQ_API_KEY dans .env');
-      }
-
       // Préparer l'historique de conversation
       const conversationHistory = messages
         .filter(m => !m.isLoading && m.id !== 'welcome')
@@ -69,24 +63,14 @@ const Chatbot = () => {
           content: m.text,
         }));
 
-      const response = await fetch(API_URL, {
+      const response = await fetch(`${CHATBOT_URL}/chat`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant', // Modèle de remplacement pour mixtral-8x7b-32768
-          messages: [
-            {
-              role: 'system',
-              content: `Tu es DocBuddy, un assistant médical sympa pour étudiants en médecine. Réponds en français ou arabe selon la langue de l'utilisateur. Sois concis (2-3 phrases max), précis, et amical. Ne donne jamais de diagnostics définitifs. Termine par "Ça aide ?". Exemple : "Salut ! L'anatomie est l'étude de la structure du corps humain. C'est la base pour comprendre le fonctionnement du corps. Ça aide ?"`,
-            },
-            ...conversationHistory,
-            { role: 'user', content: currentInput },
-          ],
-          max_tokens: 250,
-          temperature: 0.7,
+          message: currentInput,
+          conversationHistory,
         }),
       });
 
@@ -96,7 +80,7 @@ const Chatbot = () => {
       }
 
       const data = await response.json();
-      const botResponseText = data.choices[0]?.message?.content;
+      const botResponseText = data.response;
 
       if (!botResponseText) {
         throw new Error('Réponse vide du serveur');

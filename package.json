@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Plateforme d'apprentissage médical - MedPlatform Maroc",
   "scripts": {
-    "start": "node backend/index.js",
+    "start": "node backend/server.js",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd backend && npm run dev",
     "client": "cd frontend && npm start",
@@ -15,7 +15,7 @@
     "heroku-postbuild": "npm run install-all && npm run build"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=20.0.0",
     "npm": ">=8.0.0"
   },
   "dependencies": {

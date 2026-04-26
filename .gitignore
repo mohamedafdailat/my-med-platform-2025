@@ -15,6 +15,10 @@ chatbot-server/node_modules/
 backend/.env
 frontend/.env
 chatbot-server/.env
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+!chatbot-server/.env.example
 
 # Firebase secrets
 backend/src/config/serviceAccountKey.json

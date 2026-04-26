@@ -6,8 +6,7 @@ import { toast } from 'react-toastify';
 import { db } from '../firebase';
 import { collection, addDoc, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { NavLink } from 'react-router-dom';
-
-const XAI_API_KEY = process.env.REACT_APP_XAI_API_KEY_2 || 'fallback-key'; // Use environment variable
+import api from '../services/api';
 
 class ErrorBoundary extends Component {
   state = { error: null };
@@ -359,37 +358,24 @@ FORMAT DE RÉPONSE - UNIQUEMENT JSON VALIDE:
 
       console.log('🚀 Envoi de la requête à xAI Grok...');
 
-      const response = await fetch('https://api.x.ai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'grok-2-1212',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: `Crée maintenant ${config.numberOfQuestions} questions de quiz pour "${config.courseName}" - ${config.quizTitle}. Focus sur ${config.category} niveau ${config.difficulty} type ${config.questionType}.`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 8000,
-          response_format: { type: "json_object" }
-        })
+      const response = await api.post('/ai/xai-chat', {
+        model: 'grok-2-1212',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: `Crée maintenant ${config.numberOfQuestions} questions de quiz pour "${config.courseName}" - ${config.quizTitle}. Focus sur ${config.category} niveau ${config.difficulty} type ${config.questionType}.`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 8000,
+        response_format: { type: "json_object" }
       });
 
       setProgress(75);
       setProcessingStage(t('finalizingQuiz'));
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Erreur API xAI:', response.status, errorData);
-        throw new Error(`Erreur API (${response.status}): ${errorData.error?.message || 'Erreur inconnue'}`);
-      }
-
-      const data = await response.json();
+      const data = response.data;
       const quizData = data.choices?.[0]?.message?.content;
 
       if (!quizData) {
