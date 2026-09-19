@@ -5,6 +5,21 @@ This project deploys as one Railway service:
 - `backend/server.js` serves the API under `/api`.
 - The Docker build compiles the React app into `frontend/build`.
 - The backend serves the compiled React app from the same public Railway URL.
+- The multi-stage Docker image uses Node.js 22 and runs as the unprivileged `node` user.
+- Only public Firebase web configuration is supplied to the frontend build. Server credentials are runtime variables.
+
+## Existing Railway Target
+
+- GitHub: `mohamedafdailat/my-med-platform-2025`, branch `main`.
+- Project: `happy-forgiveness` (`c09e9625-3b44-46fc-8f51-968af4fdeb21`).
+- Environment: `production` (`72ae5847-f479-4fef-839c-d817655393b7`).
+- Service: `my-med-platform-2025` (`a15226ef-835b-4f2c-a074-5de18f7ddf4d`).
+- Public URL: https://my-med-platform-2025-production-e53b.up.railway.app
+- Repository root: `/`; Dockerfile: `/Dockerfile`.
+- Start command: `node backend/server.js`.
+- Health check: `/health`, timeout 120 seconds.
+
+The service is connected to GitHub. Push reviewed changes to `main` to deploy.
 
 ## 1. Security Before Push
 
@@ -47,7 +62,7 @@ Do not stage local `.env` files, backup env files, service-account JSON files, `
 
 ## 4. Deploy On Railway
 
-1. Create a new Railway project from the private GitHub repository.
+1. Open the existing Railway service above.
 2. Deploy from the repository root.
 3. Let Railway use the root `Dockerfile`.
 4. Add the environment variables below.
@@ -65,6 +80,7 @@ GROQ_API_KEY=
 GROQ_CHAT_MODEL=openai/gpt-oss-20b
 XAI_API_KEY=
 XAI_API_KEY_2=
+XAI_CHAT_MODEL=grok-3-mini
 FIREBASE_SERVICE_ACCOUNT_BASE64=
 FIREBASE_STORAGE_BUCKET=
 FIREBASE_DATABASE_URL=
@@ -73,6 +89,8 @@ CORS_ORIGIN=https://your-app.up.railway.app
 ```
 
 Prefer `FIREBASE_SERVICE_ACCOUNT_BASE64` for Railway. Encode the full Firebase service-account JSON as base64 and paste the result as one line.
+
+Use the existing `backend/serviceAccountKey.json` only as the local source for this value; never commit or upload that file in the Docker build context. When using the CLI, pass secret values through `railway variable set KEY --stdin --skip-deploys`, not command-line arguments, and do not print variable-list output. Apply all required variables before triggering a deployment.
 
 React build-time variables:
 
@@ -86,7 +104,9 @@ REACT_APP_FIREBASE_APP_ID=
 REACT_APP_FIREBASE_MEASUREMENT_ID=
 ```
 
-For the one-service Railway deployment, do not set `REACT_APP_BACKEND_URL`. The frontend should call same-origin `/api`.
+The Dockerfile declares these public variables with `ARG`, as required by [Railway's Dockerfile build documentation](https://docs.railway.com/builds/dockerfiles). It fails the build if required Firebase configuration is missing. Changes to these variables require a new build.
+
+For the one-service Railway deployment, do not set `REACT_APP_BACKEND_URL`, `REACT_APP_API_URL`, or `REACT_APP_CHATBOT_URL`. The frontend calls same-origin `/api`. Local `.env` files retain their localhost values and are excluded from the image.
 
 ## 6. Firebase Configuration
 
@@ -96,13 +116,15 @@ After Railway provides the public URL:
 2. Confirm Firestore and Storage production rules are applied.
 3. Confirm the Firebase service account used by Railway has the required permissions.
 
+The domain `my-med-platform-2025-production-e53b.up.railway.app` is authorized in the existing Firebase project. Existing authorized domains are preserved.
+
 ## 7. Production Checks
 
 After deployment:
 
 ```bash
-curl https://your-app.up.railway.app/health
-curl https://your-app.up.railway.app/api/health
+curl https://my-med-platform-2025-production-e53b.up.railway.app/health
+curl https://my-med-platform-2025-production-e53b.up.railway.app/api/health
 ```
 
 Then test:

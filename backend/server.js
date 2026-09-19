@@ -79,6 +79,11 @@ if (!admin.apps.length) {
 const db = getFirestore();
 const app = express();
 
+// Railway terminates HTTPS at its reverse proxy. Rate limits must use client IPs.
+if (process.env.RAILWAY_ENVIRONMENT_ID) {
+  app.set('trust proxy', 1);
+}
+
 /* =========================================================
    CORS + CSP configuration
 ========================================================= */

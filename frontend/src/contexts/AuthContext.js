@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (email) => {
     try {
       await sendPasswordResetEmail(auth, email, {
-        url: process.env.REACT_APP_BASE_URL || 'http://localhost:3000/login',
+        url: process.env.REACT_APP_BASE_URL || `${window.location.origin}/login`,
       });
     } catch (error) {
       console.error('AuthContext resetPassword error:', error.code, error.message);
