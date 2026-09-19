@@ -1,25 +1,23 @@
 # Use Node.js LTS version
 FROM node:20-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files first (for better caching)
-COPY package*.json ./
-COPY frontend/package*.json ./frontend/
+# Install backend and frontend dependencies directly.
 COPY backend/package*.json ./backend/
+COPY frontend/package*.json ./frontend/
 
-# Install all dependencies using npm install (this runs postinstall scripts)
-RUN npm install
+RUN npm ci --prefix backend
+RUN npm ci --prefix frontend
 
-# Copy the rest of the application code
-COPY . .
+COPY backend ./backend
+COPY frontend ./frontend
 
-# Build the frontend application
-RUN npm run build
+# React build-time env vars are injected by Railway during this step.
+RUN npm run build --prefix frontend
 
-# Expose the app port
+ENV NODE_ENV=production
 EXPOSE 5000
 
-# Start the backend. It serves /api routes and the compiled frontend build.
+# The backend serves /api routes and the compiled React build.
 CMD ["node", "backend/server.js"]

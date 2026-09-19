@@ -1,336 +1,721 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  deleteDoc,
+  doc,
+} from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import FlashcardGenerator from './FlashcardGenerator';
-import { 
-  ChevronLeft, ChevronRight, Eye, RotateCcw, Shuffle, Home,
-  CheckCircle, XCircle, AlertCircle, Clock, Trophy, Target 
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  RotateCcw,
+  Shuffle,
+  Home,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Clock,
+  Trophy,
+  Target,
+  Plus,
+  Trash2,
+  Search,
+  BookOpen,
 } from 'lucide-react';
+
+const LOCAL_THUMBNAILS = {
+  anatomy: '/image1.png',
+  physiology: '/image2.png',
+  pharmacology: '/image3.png',
+  general: '/image4.png',
+  clinical: '/image5.png',
+  public_health: '/image6.png',
+  terminology: '/image7.png',
+  other: '/image8.png',
+};
+
+const TRANSLATIONS = {
+  fr: {
+    title: 'Flashcards médicales',
+    subtitle: 'Révisez efficacement avec des decks interactifs et des cartes générées par IA.',
+    searchPlaceholder: 'Rechercher un deck...',
+    createFromPDF: 'Générer depuis PDF',
+    study: 'Étudier',
+    cards: 'cartes',
+    delete: 'Supprimer',
+    noDecks: 'Aucun deck trouvé.',
+    myDecks: 'Mes decks personnalisés',
+    defaultDecks: 'Decks par défaut',
+    createdOn: 'Créé le',
+    difficulty: 'Difficulté',
+    easy: 'Facile',
+    medium: 'Moyen',
+    hard: 'Difficile',
+    subscriptionRequired: 'Un abonnement payant est requis.',
+    loading: 'Chargement...',
+    confirmDelete: 'Êtes-vous sûr de vouloir supprimer ce deck ?',
+    deleteError: 'Erreur lors de la suppression.',
+    loadError: 'Erreur lors du chargement des decks personnalisés.',
+    noCardsError: 'Ce deck ne contient aucune carte.',
+    invalidFormat: 'Erreur : format de cartes invalide.',
+    next: 'Suivant',
+    prev: 'Précédent',
+    showAnswer: 'Voir la réponse',
+    hideAnswer: 'Masquer la réponse',
+    finish: 'Terminer',
+    back: 'Retour',
+    reset: 'Recommencer',
+    shuffle: 'Mélanger',
+    question: 'Question',
+    answer: 'Réponse',
+    correct: 'Correct',
+    incorrect: 'Incorrect',
+    skip: 'Passer',
+    progress: 'Progression',
+    timeSpent: 'Temps passé',
+    accuracy: 'Précision',
+    studyComplete: 'Étude terminée !',
+    congratulations: 'Félicitations !',
+    studyAgain: 'Étudier à nouveau',
+    autoAdvance: 'Avancement automatique',
+    category: 'Catégorie',
+    cardOf: 'sur',
+    minutes: 'min',
+    seconds: 's',
+    subscribe: 'S’abonner',
+    personalized: 'Personnalisé',
+    default: 'Par défaut',
+    deckWithoutTitle: 'Deck sans titre',
+    questionUnavailable: 'Question non disponible',
+    answerUnavailable: 'Réponse non disponible',
+    keyboardShortcuts:
+      'Raccourcis : Space/Enter = afficher la réponse | ←/→ = navigation | 1/2/3 = évaluer',
+    noResultMessage:
+      'Aucun deck ne correspond à votre recherche. Modifiez vos critères ou générez un deck depuis un PDF.',
+    anatomy: 'Anatomie',
+    physiology: 'Physiologie',
+    pharmacology: 'Pharmacologie',
+    general: 'Général',
+    clinical: 'Pratique clinique',
+    public_health: 'Santé publique',
+    terminology: 'Terminologie',
+    other: 'Autre',
+    all: 'Tous',
+    humanAnatomy: 'Anatomie humaine',
+    humanAnatomyDesc: 'Apprenez les principaux termes et structures anatomiques.',
+    pharmacologyDeck: 'Pharmacologie',
+    pharmacologyDeckDesc: 'Révisez les médicaments, indications et mécanismes d’action.',
+    physiologyDeck: 'Physiologie respiratoire',
+    physiologyDeckDesc: 'Comprenez les bases du fonctionnement respiratoire.',
+  },
+  ar: {
+    title: 'البطاقات التعليمية الطبية',
+    subtitle: 'راجع بفعالية من خلال مجموعات تفاعلية وبطاقات مولدة بالذكاء الاصطناعي.',
+    searchPlaceholder: 'ابحث عن مجموعة...',
+    createFromPDF: 'إنشاء من PDF',
+    study: 'دراسة',
+    cards: 'بطاقات',
+    delete: 'حذف',
+    noDecks: 'لم يتم العثور على مجموعات.',
+    myDecks: 'مجموعاتي المخصصة',
+    defaultDecks: 'المجموعات الافتراضية',
+    createdOn: 'تم إنشاؤه في',
+    difficulty: 'الصعوبة',
+    easy: 'سهل',
+    medium: 'متوسط',
+    hard: 'صعب',
+    subscriptionRequired: 'مطلوب اشتراك مدفوع.',
+    loading: 'جاري التحميل...',
+    confirmDelete: 'هل أنت متأكد من حذف هذه المجموعة؟',
+    deleteError: 'خطأ أثناء الحذف.',
+    loadError: 'خطأ أثناء تحميل المجموعات المخصصة.',
+    noCardsError: 'هذه المجموعة لا تحتوي على بطاقات.',
+    invalidFormat: 'خطأ: تنسيق البطاقات غير صالح.',
+    next: 'التالي',
+    prev: 'السابق',
+    showAnswer: 'إظهار الإجابة',
+    hideAnswer: 'إخفاء الإجابة',
+    finish: 'إنهاء',
+    back: 'رجوع',
+    reset: 'إعادة البدء',
+    shuffle: 'خلط',
+    question: 'سؤال',
+    answer: 'إجابة',
+    correct: 'صحيح',
+    incorrect: 'خاطئ',
+    skip: 'تخطي',
+    progress: 'التقدم',
+    timeSpent: 'الوقت المستغرق',
+    accuracy: 'الدقة',
+    studyComplete: 'انتهت الدراسة!',
+    congratulations: 'تهانينا!',
+    studyAgain: 'الدراسة مرة أخرى',
+    autoAdvance: 'التقدم التلقائي',
+    category: 'الفئة',
+    cardOf: 'من',
+    minutes: 'د',
+    seconds: 'ث',
+    subscribe: 'الاشتراك',
+    personalized: 'مخصص',
+    default: 'افتراضي',
+    deckWithoutTitle: 'مجموعة بدون عنوان',
+    questionUnavailable: 'السؤال غير متوفر',
+    answerUnavailable: 'الإجابة غير متوفرة',
+    keyboardShortcuts:
+      'اختصارات: Space/Enter = إظهار الإجابة | ←/→ = التنقل | 1/2/3 = التقييم',
+    noResultMessage:
+      'لا توجد مجموعة توافق البحث. غيّر معايير البحث أو أنشئ مجموعة من PDF.',
+    anatomy: 'التشريح',
+    physiology: 'علم وظائف الأعضاء',
+    pharmacology: 'علم الأدوية',
+    general: 'عام',
+    clinical: 'الممارسة السريرية',
+    public_health: 'الصحة العامة',
+    terminology: 'المصطلحات',
+    other: 'أخرى',
+    all: 'الكل',
+    humanAnatomy: 'التشريح البشري',
+    humanAnatomyDesc: 'تعلم المصطلحات والبنيات التشريحية الأساسية.',
+    pharmacologyDeck: 'علم الأدوية',
+    pharmacologyDeckDesc: 'راجع الأدوية والاستطبابات وآليات العمل.',
+    physiologyDeck: 'فيزيولوجيا الجهاز التنفسي',
+    physiologyDeckDesc: 'افهم أساسيات عمل الجهاز التنفسي.',
+  },
+};
 
 const Flashcards = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  
-  // View management
+
+  const isRTL = language === 'ar';
+
+  const t = useCallback(
+    (key) => TRANSLATIONS[language]?.[key] || TRANSLATIONS.fr[key] || key,
+    [language]
+  );
+
   const [view, setView] = useState('list');
   const [selectedDeck, setSelectedDeck] = useState(null);
 
-  // Listing state
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [customDecks, setCustomDecks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Player state
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [shuffledIndices, setShuffledIndices] = useState([]);
   const [isShuffled, setIsShuffled] = useState(false);
   const [studyStats, setStudyStats] = useState({
-    correct: 0, incorrect: 0, skipped: 0, startTime: Date.now(), cardProgress: []
+    correct: 0,
+    incorrect: 0,
+    skipped: 0,
+    startTime: Date.now(),
+    cardProgress: [],
   });
   const [autoAdvance, setAutoAdvance] = useState(false);
   const [studyComplete, setStudyComplete] = useState(false);
 
-  const translations = {
-    title: { fr: 'Jeu de Flashcards', ar: 'مجموعة البطاقات التعليمية' },
-    subtitle: { fr: 'Réviser avec des flashcards.', ar: 'مراجعة باستخدام البطاقات التعليمية.' },
-    searchPlaceholder: { fr: 'Rechercher un deck...', ar: 'ابحث عن مجموعة...' },
-    createFromPDF: { fr: 'Générer depuis PDF', ar: 'إنشاء من PDF' },
-    study: { fr: 'Étudier', ar: 'دراسة' },
-    cards: { fr: 'cartes', ar: 'بطاقات' },
-    delete: { fr: 'Supprimer', ar: 'حذف' },
-    noDecks: { fr: 'Aucun deck trouvé.', ar: 'لم يتم العثور على مجموعات.' },
-    myDecks: { fr: 'Mes decks personnalisés', ar: 'مجموعاتي المخصصة' },
-    defaultDecks: { fr: 'Decks par défaut', ar: 'المجموعات الافتراضية' },
-    createdOn: { fr: 'Créé le', ar: 'تم إنشاؤه في' },
-    difficulty: { fr: 'Difficulté', ar: 'الصعوبة' },
-    easy: { fr: 'Facile', ar: 'سهل' },
-    medium: { fr: 'Moyen', ar: 'متوسط' },
-    hard: { fr: 'Difficile', ar: 'صعب' },
-    subscriptionRequired: { fr: 'Un abonnement payant est requis.', ar: 'مطلوب اشتراك مدفوع.' },
-    loading: { fr: 'Chargement...', ar: 'جاري التحميل...' },
-    confirmDelete: { fr: 'Êtes-vous sûr de vouloir supprimer ce deck ?', ar: 'هل أنت متأكد من حذف هذه المجموعة؟' },
-    deleteError: { fr: 'Erreur lors de la suppression', ar: 'خطأ في الحذف' },
-    noCardsError: { fr: 'Ce deck ne contient aucune carte.', ar: 'هذه المجموعة لا تحتوي على بطاقات.' },
-    invalidFormat: { fr: 'Erreur: Format de cartes invalide.', ar: 'خطأ: تنسيق البطاقات غير صالح.' },
-    next: { fr: 'Suivant', ar: 'التالي' },
-    prev: { fr: 'Précédent', ar: 'السابق' },
-    showAnswer: { fr: 'Voir la réponse', ar: 'إظهار الإجابة' },
-    hideAnswer: { fr: 'Masquer la réponse', ar: 'إخفاء الإجابة' },
-    finish: { fr: 'Terminer', ar: 'إنهاء' },
-    back: { fr: 'Retour', ar: 'رجوع' },
-    reset: { fr: 'Recommencer', ar: 'إعادة البدء' },
-    shuffle: { fr: 'Mélanger', ar: 'خلط' },
-    question: { fr: 'Question', ar: 'سؤال' },
-    answer: { fr: 'Réponse', ar: 'إجابة' },
-    correct: { fr: 'Correct', ar: 'صحيح' },
-    incorrect: { fr: 'Incorrect', ar: 'خاطئ' },
-    skip: { fr: 'Passer', ar: 'تخطي' },
-    progress: { fr: 'Progression', ar: 'التقدم' },
-    statistics: { fr: 'Statistiques', ar: 'الإحصائيات' },
-    timeSpent: { fr: 'Temps passé', ar: 'الوقت المستغرق' },
-    accuracy: { fr: 'Précision', ar: 'الدقة' },
-    studyComplete: { fr: 'Étude terminée !', ar: 'انتهت الدراسة!' },
-    congratulations: { fr: 'Félicitations !', ar: 'تهانينا!' },
-    studyAgain: { fr: 'Étudier à nouveau', ar: 'ادرس مرة أخرى' },
-    autoAdvance: { fr: 'Avancement automatique', ar: 'التقدم التلقائي' },
-    category: { fr: 'Catégorie', ar: 'الفئة' },
-    cardOf: { fr: 'de', ar: 'من' },
-    minutes: { fr: 'min', ar: 'د' },
-    seconds: { fr: 's', ar: 'ث' }
-  };
+  const categories = useMemo(
+    () => [
+      { id: 'all', label: t('all') },
+      { id: 'anatomy', label: t('anatomy') },
+      { id: 'physiology', label: t('physiology') },
+      { id: 'pharmacology', label: t('pharmacology') },
+      { id: 'general', label: t('general') },
+      { id: 'clinical', label: t('clinical') },
+      { id: 'public_health', label: t('public_health') },
+      { id: 'terminology', label: t('terminology') },
+      { id: 'other', label: t('other') },
+    ],
+    [t]
+  );
 
-  // Suppress ESLint warning for static translations object
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const t = useCallback((key) => translations[key]?.[language] || translations[key]?.fr || key, [language]);
+  const defaultFlashcardDecks = useMemo(
+    () => [
+      {
+        id: 'default-1',
+        title: t('humanAnatomy'),
+        description: t('humanAnatomyDesc'),
+        thumbnail: LOCAL_THUMBNAILS.anatomy,
+        category: 'anatomy',
+        type: 'default',
+        difficulty: 'medium',
+        cards: [
+          {
+            id: 'card-anatomy-1',
+            question: {
+              fr: "Quelle est la fonction principale du cœur ?",
+              ar: 'ما هي الوظيفة الرئيسية للقلب؟',
+            },
+            answer: {
+              fr: 'Le cœur est un organe musculaire qui assure la circulation du sang dans tout l’organisme grâce à des contractions rythmiques.',
+              ar: 'القلب عضو عضلي يضمن دوران الدم في الجسم بفضل تقلصات منتظمة.',
+            },
+            difficulty: 'medium',
+            category: 'anatomy',
+          },
+          {
+            id: 'card-anatomy-2',
+            question: {
+              fr: 'Où se situe le foie ?',
+              ar: 'أين يوجد الكبد؟',
+            },
+            answer: {
+              fr: 'Le foie se situe principalement dans la partie supérieure droite de l’abdomen, sous le diaphragme.',
+              ar: 'يوجد الكبد أساساً في الجزء العلوي الأيمن من البطن تحت الحجاب الحاجز.',
+            },
+            difficulty: 'easy',
+            category: 'anatomy',
+          },
+        ],
+      },
+      {
+        id: 'default-2',
+        title: t('pharmacologyDeck'),
+        description: t('pharmacologyDeckDesc'),
+        thumbnail: LOCAL_THUMBNAILS.pharmacology,
+        category: 'pharmacology',
+        type: 'default',
+        difficulty: 'hard',
+        cards: [
+          {
+            id: 'card-pharma-1',
+            question: {
+              fr: "Quel est le mécanisme d’action principal du paracétamol ?",
+              ar: 'ما هي آلية العمل الرئيسية للباراسيتامول؟',
+            },
+            answer: {
+              fr: 'Le paracétamol possède une action antalgique et antipyrétique. Son mécanisme exact reste complexe, mais il agit surtout au niveau central.',
+              ar: 'للباراسيتامول تأثير مسكن وخافض للحرارة، ويعمل بشكل أساسي على المستوى المركزي.',
+            },
+            difficulty: 'medium',
+            category: 'pharmacology',
+          },
+          {
+            id: 'card-pharma-2',
+            question: {
+              fr: "Pourquoi l’aspirine peut-elle avoir un effet antiagrégant plaquettaire ?",
+              ar: 'لماذا يمكن للأسبرين أن يكون له تأثير مضاد لتجمع الصفائح؟',
+            },
+            answer: {
+              fr: 'L’aspirine inhibe de manière irréversible la cyclo-oxygénase plaquettaire, diminuant la production de thromboxane A2.',
+              ar: 'يثبط الأسبرين إنزيم السيكلوأوكسيجيناز في الصفائح بشكل غير عكوس، مما يقلل إنتاج الثرومبوكسان A2.',
+            },
+            difficulty: 'hard',
+            category: 'pharmacology',
+          },
+        ],
+      },
+      {
+        id: 'default-3',
+        title: t('physiologyDeck'),
+        description: t('physiologyDeckDesc'),
+        thumbnail: LOCAL_THUMBNAILS.physiology,
+        category: 'physiology',
+        type: 'default',
+        difficulty: 'medium',
+        cards: [
+          {
+            id: 'card-physio-1',
+            question: {
+              fr: 'Quel est le rôle du surfactant pulmonaire ?',
+              ar: 'ما هو دور السورفاكتانت الرئوي؟',
+            },
+            answer: {
+              fr: 'Le surfactant diminue la tension superficielle des alvéoles et limite leur collapsus lors de l’expiration.',
+              ar: 'يقلل السورفاكتانت من التوتر السطحي للحويصلات ويمنع انخماصها أثناء الزفير.',
+            },
+            difficulty: 'hard',
+            category: 'physiology',
+          },
+        ],
+      },
+    ],
+    [t]
+  );
 
-  const defaultFlashcardDecks = [
-    {
-      id: 'default-1',
-      title: t('Anatomie Humaine'),
-      description: t('Apprenez les principaux termes d\'anatomie.'),
-      thumbnail: 'https://www.docdeclic.fr/uploads/1587477264_3ea943e53a43e6383b3e.png',
-      cards: [
-        { id: 'card-anatomy-1', front: t('Qu\'est-ce que le cœur ?'), back: t('Organe musculaire qui pompe le sang dans tout le corps'), difficulty: 'medium', category: 'anatomy' },
-        { id: 'card-anatomy-2', front: t('Où se trouve le foie ?'), back: t('Dans la partie supérieure droite de l\'abdomen'), difficulty: 'medium', category: 'anatomy' },
-      ],
-      category: 'anatomy',
-      type: 'default',
-      difficulty: 'medium',
-      cardCount: 2,
-    },
-    {
-      id: 'default-3',
-      title: t('Pharmacologie'),
-      description: t('Revisez les noms et usages des médicaments.'),
-      thumbnail: 'https://cdn.slidesharecdn.com/ss_thumbnails/lesantibiotiquesi-171209223412-thumbnail.jpg?width=640&height=640&fit=bounds',
-      cards: [
-        { id: 'card-pharma-1', front: t('Qu\'est-ce que le paracétamol ?'), back: t('Analgésique et antipyrétique'), difficulty: 'hard', category: 'pharmacology' },
-        { id: 'card-pharma-2', front: t('Usage de l\'aspirine ?'), back: t('Anti-inflammatoire et anticoagulant'), difficulty: 'hard', category: 'pharmacology' },
-      ],
-      category: 'pharmacology',
-      type: 'default',
-      difficulty: 'hard',
-      cardCount: 2,
-    },
-  ];
-
-  const categories = [
-    { id: 'all', label: t('Tous') },
-    { id: 'anatomy', label: t('Anatomie') },
-    { id: 'physiology', label: t('Physiologie') },
-    { id: 'pharmacology', label: t('Pharmacologie') },
-    { id: 'general', label: t('Général') },
-    { id: 'clinical', label: t('Pratique clinique') },
-    { id: 'public_health', label: t('Santé publique') },
-    { id: 'terminology', label: t('Terminologie') },
-    { id: 'other', label: t('Autre') },
-  ];
-
-  const isAdmin = useCallback((user) => {
-    return user?.role === 'admin' || user?.customClaims?.role === 'admin' || user?.email === 'admin_1@medplatform.com';
+  const isAdmin = useCallback((currentUser) => {
+    return (
+      currentUser?.role === 'admin' ||
+      currentUser?.customClaims?.role === 'admin' ||
+      currentUser?.email === 'admin_1@medplatform.com'
+    );
   }, []);
 
   const isAuthenticatedAndPaid = useCallback(() => {
     if (authLoading || !user) return false;
-    const isStudent = user?.role === 'student' || user?.customClaims?.role === 'student' || (!user?.role && !user?.customClaims?.role);
+
+    const isStudent =
+      user?.role === 'student' ||
+      user?.customClaims?.role === 'student' ||
+      (!user?.role && !user?.customClaims?.role);
+
     return isAdmin(user) || (isStudent && user.subscriptionStatus === 'paid');
   }, [authLoading, user, isAdmin]);
 
-  const transformFlashcardData = useCallback((firestoreCard) => {
-    if (!firestoreCard) return null;
-    let front = t('Question non disponible');
-    let back = t('Réponse non disponible');
-    if (firestoreCard.question && firestoreCard.answer) {
-      front = typeof firestoreCard.question === 'object' ? firestoreCard.question[language] || firestoreCard.question.fr || firestoreCard.question : firestoreCard.question;
-      back = typeof firestoreCard.answer === 'object' ? firestoreCard.answer[language] || firestoreCard.answer.fr || firestoreCard.answer : firestoreCard.answer;
-    } else if (firestoreCard.front && firestoreCard.back) {
-      front = typeof firestoreCard.front === 'object' ? firestoreCard.front[language] || firestoreCard.front.fr || firestoreCard.front : firestoreCard.front;
-      back = typeof firestoreCard.back === 'object' ? firestoreCard.back[language] || firestoreCard.back.fr || firestoreCard.back : firestoreCard.back;
+  const normalizeText = useCallback((value, fallback) => {
+    if (!value) return fallback;
+
+    if (typeof value === 'string') return value;
+
+    if (typeof value === 'object') {
+      return value[language] || value.fr || value.ar || fallback;
     }
-    return front && back && front !== t('Question non disponible') && back !== t('Réponse non disponible')
-      ? { id: firestoreCard.id || `card-${Math.random().toString(36).substr(2, 9)}`, front, back, difficulty: firestoreCard.difficulty || 'medium', category: firestoreCard.category || 'general' }
-      : null;
-  }, [language, t]);
+
+    return String(value);
+  }, [language]);
+
+  const transformFlashcardData = useCallback(
+    (rawCard, index = 0) => {
+      if (!rawCard || typeof rawCard !== 'object') return null;
+
+      const front = normalizeText(
+        rawCard.question || rawCard.front || rawCard.prompt,
+        t('questionUnavailable')
+      );
+
+      const back = normalizeText(
+        rawCard.answer || rawCard.back || rawCard.response,
+        t('answerUnavailable')
+      );
+
+      if (
+        !front ||
+        !back ||
+        front === t('questionUnavailable') ||
+        back === t('answerUnavailable')
+      ) {
+        return null;
+      }
+
+      return {
+        id: rawCard.id || `card-${index}-${Math.random().toString(36).slice(2, 9)}`,
+        front,
+        back,
+        difficulty: rawCard.difficulty || 'medium',
+        category: rawCard.category || 'general',
+        conceptSource: rawCard.concept_source || rawCard.conceptSource || null,
+      };
+    },
+    [normalizeText, t]
+  );
+
+  const getDeckCards = useCallback(
+    (data) => {
+      const possibleCards = data?.cards || data?.flashcards || data?.items || [];
+      if (!Array.isArray(possibleCards)) return [];
+
+      return possibleCards
+        .map((card, index) => transformFlashcardData(card, index))
+        .filter(Boolean);
+    },
+    [transformFlashcardData]
+  );
+
+  const getFirestoreDate = useCallback((value) => {
+    if (!value) return new Date();
+
+    if (value?.toDate) return value.toDate();
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, []);
 
   const removeDuplicateDecks = useCallback((decks) => {
     const seen = new Map();
-    return decks.reduce((uniqueDecks, currentDeck) => {
-      if (!currentDeck) return uniqueDecks;
-      const key = `${currentDeck.title}-${currentDeck.ownerId || 'default'}`;
-      const existingDeck = seen.get(key);
-      if (!existingDeck) {
-        seen.set(key, currentDeck);
-        return [...uniqueDecks, currentDeck];
+
+    decks.forEach((deck) => {
+      if (!deck) return;
+
+      const key = `${deck.title || ''}-${deck.ownerId || 'default'}`;
+      const existing = seen.get(key);
+
+      if (!existing || (deck.cards?.length || 0) > (existing.cards?.length || 0)) {
+        seen.set(key, deck);
       }
-      if (currentDeck.cards.length > existingDeck.cards.length) {
-        seen.set(key, currentDeck);
-        return uniqueDecks.map(deck => deck.title === currentDeck.title && deck.ownerId === currentDeck.ownerId ? currentDeck : deck);
-      }
-      return uniqueDecks;
-    }, []);
+    });
+
+    return Array.from(seen.values());
   }, []);
 
-  useEffect(() => {
-    const fetchCustomDecks = async () => {
-      setLoading(true);
-      try {
-        if (!isAuthenticatedAndPaid()) {
-          setCustomDecks([]);
-          setLoading(false);
-          return;
-        }
-        const auth = getAuth();
-        const userId = auth.currentUser?.uid;
-        if (!userId) {
-          setCustomDecks([]);
-          setLoading(false);
-          return;
-        }
-        const q = query(collection(db, 'flashcards'), where('ownerId', '==', userId));
-        const querySnapshot = await getDocs(q);
-        const decks = await Promise.all(querySnapshot.docs.map(async (doc) => {
-          const data = doc.data();
-          let transformedCards = [];
-          if (data.flashcards && Array.isArray(data.flashcards)) {
-            transformedCards = data.flashcards.map(card => transformFlashcardData(card)).filter(card => card !== null);
-          } else if (data.cards && Array.isArray(data.cards)) {
-            transformedCards = data.cards.map(card => transformFlashcardData(card)).filter(card => card !== null);
-          }
-          if (transformedCards.length === 0) return null;
-          const semester = data.semester || (user?.semester ? user.semester : null);
-          if (!isAdmin(user) && semester && user?.semester !== semester) return null;
-          return {
-            id: doc.id,
-            title: data.title || t('Deck sans titre'),
-            description: data.description || '',
-            category: data.category || 'general',
-            difficulty: data.difficulty || 'medium',
-            cardCount: transformedCards.length,
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
-            cards: transformedCards,
-            type: 'custom',
-            ownerId: data.ownerId,
-            semester: semester,
-            thumbnail: data.thumbnail || 'https://placehold.co/400x300?text=Flashcard+Deck',
-          };
-        }));
-        const filteredDecks = decks.filter(deck => deck !== null);
-        const uniqueDecks = removeDuplicateDecks(filteredDecks);
-        setCustomDecks(uniqueDecks);
-        setError('');
-      } catch (error) {
-        setError(t('Erreur lors du chargement des decks personnalisés'));
+  const fetchCustomDecks = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      if (!isAuthenticatedAndPaid()) {
         setCustomDecks([]);
-      } finally {
-        setLoading(false);
+        setError('');
+        return;
       }
-    };
+
+      const auth = getAuth();
+      const userId = auth.currentUser?.uid || user?.uid;
+
+      if (!userId) {
+        setCustomDecks([]);
+        setError('');
+        return;
+      }
+
+      const q = query(collection(db, 'flashcards'), where('ownerId', '==', userId));
+      const querySnapshot = await getDocs(q);
+
+      const decks = querySnapshot.docs
+        .map((snapshot) => {
+          const data = snapshot.data();
+          const cards = getDeckCards(data);
+
+          if (cards.length === 0) return null;
+
+          const semester = data.semester || user?.semester || null;
+
+          if (!isAdmin(user) && semester && user?.semester && user.semester !== semester) {
+            return null;
+          }
+
+          const category = data.category || cards[0]?.category || 'general';
+
+          return {
+            id: snapshot.id,
+            title: data.title || t('deckWithoutTitle'),
+            description: data.description || '',
+            category,
+            difficulty: data.difficulty || cards[0]?.difficulty || 'medium',
+            cardCount: cards.length,
+            createdAt: getFirestoreDate(data.createdAt),
+            cards,
+            type: 'custom',
+            ownerId: data.ownerId || userId,
+            semester,
+            thumbnail: data.thumbnail || LOCAL_THUMBNAILS[category] || LOCAL_THUMBNAILS.general,
+            qualityScore: data.qualityScore || null,
+            aiModel: data.aiModel || null,
+          };
+        })
+        .filter(Boolean);
+
+      setCustomDecks(removeDuplicateDecks(decks));
+      setError('');
+    } catch (fetchError) {
+      console.error('Erreur chargement flashcards:', fetchError);
+      setCustomDecks([]);
+      setError(t('loadError'));
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    isAuthenticatedAndPaid,
+    user,
+    getDeckCards,
+    getFirestoreDate,
+    isAdmin,
+    removeDuplicateDecks,
+    t,
+  ]);
+
+  useEffect(() => {
     fetchCustomDecks();
-  }, [isAuthenticatedAndPaid, language, t, transformFlashcardData, removeDuplicateDecks, user, isAdmin]);
+  }, [fetchCustomDecks]);
 
-  const handleDeckSaved = useCallback((newDeck) => {
-    if (!isAuthenticatedAndPaid()) {
-      alert(t('subscriptionRequired'));
-      return;
-    }
-    const transformedCards = newDeck.flashcards
-      ? newDeck.flashcards.map(card => transformFlashcardData(card)).filter(card => card !== null)
-      : [];
-    if (transformedCards.length === 0) {
-      alert(t('noCardsError'));
-      return;
-    }
-    const transformedDeck = {
-      ...newDeck,
-      id: newDeck.id || `custom-${Math.random().toString(36).substr(2, 9)}`,
-      title: newDeck.title || t('Deck sans titre'),
-      description: newDeck.description || '',
-      category: newDeck.category || 'general',
-      difficulty: newDeck.difficulty || 'medium',
-      cards: transformedCards,
-      type: 'custom',
-      ownerId: user?.uid || 'anonymous',
-      cardCount: transformedCards.length,
-      createdAt: new Date(),
-      thumbnail: newDeck.thumbnail || 'https://placehold.co/400x300?text=Flashcard+Deck',
-      semester: user?.semester || null,
-    };
-    const isDuplicate = customDecks.some(deck => deck.id === transformedDeck.id);
-    if (!isDuplicate) {
-      setCustomDecks(prev => [...prev, transformedDeck]);
-    }
-  }, [isAuthenticatedAndPaid, t, transformFlashcardData, customDecks, user]);
+  const handleDeckSaved = useCallback(
+    (newDeck) => {
+      if (!isAuthenticatedAndPaid()) {
+        alert(t('subscriptionRequired'));
+        return;
+      }
 
-  const handleStudyDeck = useCallback((deck) => {
-    if (!isAuthenticatedAndPaid() && deck.type === 'custom') {
-      alert(t('subscriptionRequired'));
-      return;
-    }
-    if (!deck.cards || deck.cards.length === 0) {
-      alert(t('noCardsError'));
-      return;
-    }
-    const hasValidCards = deck.cards.every(card => card.front && card.back && typeof card.front === 'string' && typeof card.back === 'string');
-    if (!hasValidCards) {
-      alert(t('invalidFormat'));
-      return;
-    }
-    setSelectedDeck(deck);
-    setShuffledIndices(deck.cards.map((_, index) => index));
-    setStudyStats({ correct: 0, incorrect: 0, skipped: 0, startTime: Date.now(), cardProgress: new Array(deck.cards.length).fill('unseen') });
-    setCurrentCardIndex(0);
-    setShowAnswer(false);
-    setIsShuffled(false);
-    setStudyComplete(false);
-    setView('play');
-  }, [isAuthenticatedAndPaid, t]);
+      const cards = getDeckCards(newDeck);
 
-  const handleDeleteDeck = useCallback(async (deckId) => {
-    if (!isAuthenticatedAndPaid()) {
-      alert(t('subscriptionRequired'));
-      return;
-    }
-    if (window.confirm(t('confirmDelete'))) {
+      if (cards.length === 0) {
+        alert(t('noCardsError'));
+        return;
+      }
+
+      const category = newDeck.category || cards[0]?.category || 'general';
+
+      const transformedDeck = {
+        id: newDeck.id || `custom-${Date.now()}`,
+        title: newDeck.title || t('deckWithoutTitle'),
+        description: newDeck.description || '',
+        category,
+        difficulty: newDeck.difficulty || cards[0]?.difficulty || 'medium',
+        cards,
+        type: 'custom',
+        ownerId: user?.uid || 'anonymous',
+        cardCount: cards.length,
+        createdAt: getFirestoreDate(newDeck.createdAt),
+        thumbnail: newDeck.thumbnail || LOCAL_THUMBNAILS[category] || LOCAL_THUMBNAILS.general,
+        semester: user?.semester || null,
+        qualityScore: newDeck.qualityScore || null,
+        aiModel: newDeck.aiModel || null,
+      };
+
+      setCustomDecks((prev) => {
+        const withoutDuplicate = prev.filter((deck) => deck.id !== transformedDeck.id);
+        return [transformedDeck, ...withoutDuplicate];
+      });
+
+      setView('list');
+    },
+    [
+      getDeckCards,
+      getFirestoreDate,
+      isAuthenticatedAndPaid,
+      t,
+      user,
+    ]
+  );
+
+  const handleStudyDeck = useCallback(
+    (deck) => {
+      if (!isAuthenticatedAndPaid() && deck.type === 'custom') {
+        alert(t('subscriptionRequired'));
+        return;
+      }
+
+      if (!deck.cards || deck.cards.length === 0) {
+        alert(t('noCardsError'));
+        return;
+      }
+
+      const hasValidCards = deck.cards.every(
+        (card) =>
+          card?.front &&
+          card?.back &&
+          typeof card.front === 'string' &&
+          typeof card.back === 'string'
+      );
+
+      if (!hasValidCards) {
+        alert(t('invalidFormat'));
+        return;
+      }
+
+      setSelectedDeck(deck);
+      setShuffledIndices(deck.cards.map((_, index) => index));
+      setStudyStats({
+        correct: 0,
+        incorrect: 0,
+        skipped: 0,
+        startTime: Date.now(),
+        cardProgress: new Array(deck.cards.length).fill('unseen'),
+      });
+      setCurrentCardIndex(0);
+      setShowAnswer(false);
+      setIsShuffled(false);
+      setStudyComplete(false);
+      setView('play');
+    },
+    [isAuthenticatedAndPaid, t]
+  );
+
+  const handleDeleteDeck = useCallback(
+    async (deckId) => {
+      if (!isAuthenticatedAndPaid()) {
+        alert(t('subscriptionRequired'));
+        return;
+      }
+
+      if (!window.confirm(t('confirmDelete'))) return;
+
       try {
         await deleteDoc(doc(db, 'flashcards', deckId));
-        setCustomDecks(prev => prev.filter(deck => deck.id !== deckId));
-      } catch (error) {
+        setCustomDecks((prev) => prev.filter((deck) => deck.id !== deckId));
+      } catch (deleteError) {
+        console.error('Erreur suppression flashcard deck:', deleteError);
         alert(t('deleteError'));
       }
-    }
-  }, [isAuthenticatedAndPaid, t]);
+    },
+    [isAuthenticatedAndPaid, t]
+  );
 
-  const allDecks = [...customDecks, ...defaultFlashcardDecks];
-  const filteredDecks = allDecks
-    .filter(deck => selectedCategory === 'all' || deck.category === selectedCategory)
-    .filter(deck => deck.title.toLowerCase().includes(searchQuery.toLowerCase()) || (deck.description && deck.description.toLowerCase().includes(searchQuery.toLowerCase())));
+  const allDecks = useMemo(
+    () => [...customDecks, ...defaultFlashcardDecks],
+    [customDecks, defaultFlashcardDecks]
+  );
 
-  const formatDate = useCallback((date) => {
-    if (!date) return '';
-    return new Date(date).toLocaleDateString(language === 'ar' ? 'ar-MA' : 'fr-FR', { year: 'numeric', month: 'short', day: 'numeric' });
-  }, [language]);
+  const filteredDecks = useMemo(() => {
+    const search = searchQuery.trim().toLowerCase();
+
+    return allDecks
+      .filter((deck) => selectedCategory === 'all' || deck.category === selectedCategory)
+      .filter((deck) => {
+        if (!search) return true;
+
+        return (
+          deck.title?.toLowerCase().includes(search) ||
+          deck.description?.toLowerCase().includes(search)
+        );
+      });
+  }, [allDecks, selectedCategory, searchQuery]);
+
+  const visibleCustomDecks = useMemo(
+    () => filteredDecks.filter((deck) => deck.type === 'custom'),
+    [filteredDecks]
+  );
+
+  const visibleDefaultDecks = useMemo(
+    () => filteredDecks.filter((deck) => deck.type === 'default'),
+    [filteredDecks]
+  );
+
+  const formatDate = useCallback(
+    (date) => {
+      if (!date) return '';
+
+      return new Date(date).toLocaleDateString(language === 'ar' ? 'ar-MA' : 'fr-FR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    },
+    [language]
+  );
 
   const getDifficultyColor = useCallback((difficulty) => {
     switch (difficulty) {
-      case 'easy': return 'bg-green-100 text-green-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'hard': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'easy':
+        return 'bg-green-100 text-green-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'hard':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   }, []);
 
-  // Player functions
+  const getProgressColor = useCallback((status) => {
+    switch (status) {
+      case 'correct':
+        return 'bg-green-500';
+      case 'incorrect':
+        return 'bg-red-500';
+      case 'skip':
+        return 'bg-yellow-500';
+      case 'unseen':
+      default:
+        return 'bg-gray-300';
+    }
+  }, []);
+
   const handleNext = useCallback(() => {
     if (!selectedDeck) return;
+
     const nextIndex = currentCardIndex + 1;
+
     if (nextIndex < selectedDeck.cards.length) {
       setCurrentCardIndex(nextIndex);
       setShowAnswer(false);
@@ -341,33 +726,56 @@ const Flashcards = () => {
 
   const handlePrevious = useCallback(() => {
     if (currentCardIndex > 0) {
-      setCurrentCardIndex(currentCardIndex - 1);
+      setCurrentCardIndex((prev) => prev - 1);
       setShowAnswer(false);
     }
   }, [currentCardIndex]);
 
-  const handleCardResponse = useCallback((response) => {
-    const newStats = { ...studyStats };
-    const newProgress = [...newStats.cardProgress];
-    newProgress[currentCardIndex] = response;
-    switch (response) {
-      case 'correct': newStats.correct++; break;
-      case 'incorrect': newStats.incorrect++; break;
-      case 'skip': newStats.skipped++; break;
-      default: break; // Handle unexpected response
-    }
-    newStats.cardProgress = newProgress;
-    setStudyStats(newStats);
-    if (autoAdvance || response !== 'skip') {
-      setTimeout(() => handleNext(), 500);
-    }
-  }, [studyStats, currentCardIndex, autoAdvance, handleNext]);
+  const handleCardResponse = useCallback(
+    (response) => {
+      if (!selectedDeck) return;
+
+      const realCardIndex = shuffledIndices[currentCardIndex] ?? currentCardIndex;
+
+      setStudyStats((prev) => {
+        const newProgress = [...prev.cardProgress];
+        const previousStatus = newProgress[realCardIndex];
+
+        const newStats = { ...prev, cardProgress: newProgress };
+
+        if (previousStatus === 'correct') newStats.correct = Math.max(0, newStats.correct - 1);
+        if (previousStatus === 'incorrect') newStats.incorrect = Math.max(0, newStats.incorrect - 1);
+        if (previousStatus === 'skip') newStats.skipped = Math.max(0, newStats.skipped - 1);
+
+        newProgress[realCardIndex] = response;
+
+        if (response === 'correct') newStats.correct += 1;
+        if (response === 'incorrect') newStats.incorrect += 1;
+        if (response === 'skip') newStats.skipped += 1;
+
+        return newStats;
+      });
+
+      if (autoAdvance || response !== 'skip') {
+        setTimeout(() => {
+          handleNext();
+        }, 450);
+      }
+    },
+    [autoAdvance, currentCardIndex, handleNext, selectedDeck, shuffledIndices]
+  );
 
   const shuffleCards = useCallback(() => {
     if (!selectedDeck) return;
+
     const indices = [...Array(selectedDeck.cards.length).keys()];
-    const shuffled = indices.sort(() => Math.random() - 0.5);
-    setShuffledIndices(shuffled);
+
+    for (let i = indices.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+
+    setShuffledIndices(indices);
     setCurrentCardIndex(0);
     setShowAnswer(false);
     setIsShuffled(true);
@@ -375,14 +783,18 @@ const Flashcards = () => {
 
   const resetStudy = useCallback(() => {
     if (!selectedDeck) return;
+
     setCurrentCardIndex(0);
     setShowAnswer(false);
     setIsShuffled(false);
     setStudyComplete(false);
     setShuffledIndices(selectedDeck.cards.map((_, index) => index));
     setStudyStats({
-      correct: 0, incorrect: 0, skipped: 0, startTime: Date.now(),
-      cardProgress: new Array(selectedDeck.cards.length).fill('unseen')
+      correct: 0,
+      incorrect: 0,
+      skipped: 0,
+      startTime: Date.now(),
+      cardProgress: new Array(selectedDeck.cards.length).fill('unseen'),
     });
   }, [selectedDeck]);
 
@@ -390,122 +802,209 @@ const Flashcards = () => {
     const seconds = Math.floor((Date.now() - studyStats.startTime) / 1000);
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return minutes > 0 ? `${minutes}${t('minutes')} ${remainingSeconds}${t('seconds')}` : `${seconds}${t('seconds')}`;
+
+    if (minutes > 0) {
+      return `${minutes}${t('minutes')} ${remainingSeconds}${t('seconds')}`;
+    }
+
+    return `${seconds}${t('seconds')}`;
   }, [studyStats.startTime, t]);
 
   const getAccuracy = useCallback(() => {
     const total = studyStats.correct + studyStats.incorrect;
     return total === 0 ? 0 : Math.round((studyStats.correct / total) * 100);
-  }, [studyStats]);
-
-  const getProgressColor = useCallback((status) => {
-    switch (status) {
-      case 'correct': return 'bg-green-500';
-      case 'incorrect': return 'bg-red-500';
-      case 'skip': return 'bg-yellow-500';
-      case 'unseen': return 'bg-gray-300';
-      default: return 'bg-gray-300';
-    }
-  }, []);
+  }, [studyStats.correct, studyStats.incorrect]);
 
   useEffect(() => {
-    const handleKeyPress = (e) => {
+    const handleKeyPress = (event) => {
       if (view !== 'play' || studyComplete) return;
-      switch (e.key) {
-        case ' ': case 'Enter': e.preventDefault(); setShowAnswer(!showAnswer); break;
-        case 'ArrowLeft': e.preventDefault(); handlePrevious(); break;
-        case 'ArrowRight': e.preventDefault(); handleNext(); break;
-        case '1': e.preventDefault(); if (showAnswer) handleCardResponse('incorrect'); break;
-        case '2': e.preventDefault(); if (showAnswer) handleCardResponse('skip'); break;
-        case '3': e.preventDefault(); if (showAnswer) handleCardResponse('correct'); break;
-        default: break; // Handle unexpected key
+
+      switch (event.key) {
+        case ' ':
+        case 'Enter':
+          event.preventDefault();
+          setShowAnswer((prev) => !prev);
+          break;
+        case 'ArrowLeft':
+          event.preventDefault();
+          handlePrevious();
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          handleNext();
+          break;
+        case '1':
+          event.preventDefault();
+          if (showAnswer) handleCardResponse('incorrect');
+          break;
+        case '2':
+          event.preventDefault();
+          if (showAnswer) handleCardResponse('skip');
+          break;
+        case '3':
+          event.preventDefault();
+          if (showAnswer) handleCardResponse('correct');
+          break;
+        default:
+          break;
       }
     };
+
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [view, showAnswer, handleNext, handlePrevious, handleCardResponse, studyComplete]);
+  }, [
+    view,
+    showAnswer,
+    handleNext,
+    handlePrevious,
+    handleCardResponse,
+    studyComplete,
+  ]);
 
-  const Card = ({ deck }) => {
-    const cardCount = deck.cards ? deck.cards.length : deck.cardCount || 0;
+  const DeckCard = ({ deck }) => {
+    const cardCount = deck.cards?.length || deck.cardCount || 0;
+    const thumbnail = deck.thumbnail || LOCAL_THUMBNAILS[deck.category] || LOCAL_THUMBNAILS.general;
+
     return (
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
-        {deck.thumbnail && (
-          <div className="h-48 bg-gray-200 overflow-hidden">
-            <img src={deck.thumbnail} alt={deck.title} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.style.backgroundColor = '#e5e7eb'; }} />
+      <article className="flashcard-deck-card">
+        <div className="flashcard-deck-image">
+          <img
+            src={thumbnail}
+            alt={deck.title}
+            loading="lazy"
+            onError={(event) => {
+              event.currentTarget.src = '/image1.png';
+            }}
+          />
+        </div>
+
+        <div className="flashcard-deck-body">
+          <div className="flashcard-deck-head">
+            <h3>{deck.title}</h3>
+            <span className={`deck-type-badge ${deck.type === 'custom' ? 'custom' : ''}`}>
+              {deck.type === 'custom' ? t('personalized') : t('default')}
+            </span>
           </div>
-        )}
-        <div className="p-6">
-          <div className="flex items-start justify-between mb-3">
-            <h3 className="text-xl font-semibold text-gray-800 line-clamp-2">{deck.title}</h3>
-            {deck.type === 'custom' && <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{t('Personnalisé')}</span>}
+
+          {deck.description && <p className="flashcard-deck-desc">{deck.description}</p>}
+
+          <div className="flashcard-deck-meta">
+            <span>{cardCount} {t('cards')}</span>
+            <span className={getDifficultyColor(deck.difficulty)}>
+              {t(deck.difficulty)}
+            </span>
           </div>
-          {deck.description && <p className="text-gray-600 text-sm mb-4 line-clamp-2">{deck.description}</p>}
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-gray-500">{cardCount} {t('cards')}</span>
-            {deck.difficulty && <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(deck.difficulty)}`}>{t(deck.difficulty)}</span>}
-          </div>
-          {deck.createdAt && <p className="text-xs text-gray-400 mb-4">{t('createdOn')} {formatDate(deck.createdAt)}</p>}
-          <div className="flex gap-2">
-            <button onClick={() => handleStudyDeck(deck)} className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50" disabled={cardCount === 0}>{t('study')}</button>
-            {deck.type === 'custom' && <button onClick={() => handleDeleteDeck(deck.id)} className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>}
+
+          {deck.createdAt && (
+            <p className="flashcard-deck-date">
+              {t('createdOn')} {formatDate(deck.createdAt)}
+            </p>
+          )}
+
+          <div className="flashcard-deck-actions">
+            <button
+              type="button"
+              onClick={() => handleStudyDeck(deck)}
+              className="btn-primary"
+              disabled={cardCount === 0}
+            >
+              <BookOpen className="w-4 h-4" />
+              {t('study')}
+            </button>
+
+            {deck.type === 'custom' && (
+              <button
+                type="button"
+                onClick={() => handleDeleteDeck(deck.id)}
+                className="deck-delete-btn"
+                aria-label={t('delete')}
+                title={t('delete')}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
-      </div>
+      </article>
     );
   };
 
   if (view === 'generate') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center mb-6">
-            <button onClick={() => setView('list')} className="mr-4 p-2 bg-white rounded-lg shadow hover:shadow-md transition-shadow"><svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
-            <h1 className="text-2xl font-bold text-gray-800">{t('Générateur de Flashcards')}</h1>
+      <div className={`flashcards-page ${isRTL ? 'rtl' : 'ltr'}`}>
+        <div className="flashcards-shell">
+          <div className="flashcards-topbar">
+            <button
+              type="button"
+              onClick={() => setView('list')}
+              className="icon-button"
+              aria-label={t('back')}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div>
+              <h1>{t('createFromPDF')}</h1>
+              <p>{t('subtitle')}</p>
+            </div>
           </div>
-          <FlashcardGenerator onClose={() => setView('list')} onDeckSaved={handleDeckSaved} />
+
+          <FlashcardGenerator
+            onClose={() => setView('list')}
+            onDeckSaved={handleDeckSaved}
+          />
         </div>
       </div>
     );
   }
 
   if (view === 'play' && selectedDeck) {
-    const currentCard = selectedDeck.cards[shuffledIndices[currentCardIndex]];
+    const realCardIndex = shuffledIndices[currentCardIndex] ?? currentCardIndex;
+    const currentCard = selectedDeck.cards[realCardIndex];
     const isLastCard = currentCardIndex === selectedDeck.cards.length - 1;
     const progressPercentage = ((currentCardIndex + 1) / selectedDeck.cards.length) * 100;
 
     if (studyComplete) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4">
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Trophy className="w-10 h-10 text-green-600" />
+        <div className={`flashcards-page study-complete-page ${isRTL ? 'rtl' : 'ltr'}`}>
+          <div className="study-complete-card">
+            <div className="study-complete-icon">
+              <Trophy className="w-10 h-10" />
+            </div>
+
+            <h1>{t('congratulations')}</h1>
+            <h2>{t('studyComplete')}</h2>
+
+            <div className="study-summary-grid">
+              <div>
+                <strong>{selectedDeck.cards.length}</strong>
+                <span>{t('cards')}</span>
               </div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">{t('congratulations')}</h1>
-              <h2 className="text-xl text-gray-600 mb-8">{t('studyComplete')}</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-blue-600">{selectedDeck.cards.length}</div>
-                  <div className="text-sm text-gray-600">Cartes étudiées</div>
-                </div>
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-green-600">{studyStats.correct}</div>
-                  <div className="text-sm text-gray-600">{t('correct')}</div>
-                </div>
-                <div className="bg-red-50 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-red-600">{studyStats.incorrect}</div>
-                  <div className="text-sm text-gray-600">{t('incorrect')}</div>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-purple-600">{getAccuracy()}%</div>
-                  <div className="text-sm text-gray-600">{t('accuracy')}</div>
-                </div>
+              <div>
+                <strong>{studyStats.correct}</strong>
+                <span>{t('correct')}</span>
               </div>
-              <p className="text-gray-600 mb-8">{t('timeSpent')}: {getTimeSpent()}</p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <button onClick={resetStudy} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">{t('studyAgain')}</button>
-                <button onClick={() => setView('list')} className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">{t('back')}</button>
+              <div>
+                <strong>{studyStats.incorrect}</strong>
+                <span>{t('incorrect')}</span>
               </div>
+              <div>
+                <strong>{getAccuracy()}%</strong>
+                <span>{t('accuracy')}</span>
+              </div>
+            </div>
+
+            <p className="study-time">
+              {t('timeSpent')}: {getTimeSpent()}
+            </p>
+
+            <div className="study-actions">
+              <button type="button" onClick={resetStudy} className="btn-primary">
+                {t('studyAgain')}
+              </button>
+              <button type="button" onClick={() => setView('list')} className="btn-secondary">
+                {t('back')}
+              </button>
             </div>
           </div>
         </div>
@@ -513,161 +1012,335 @@ const Flashcards = () => {
     }
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-xl shadow-lg mb-6 p-6">
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-              <div className="flex items-center">
-                <button onClick={() => setView('list')} className="mr-4 p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"><Home className="w-5 h-5 text-gray-600" /></button>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-800">{selectedDeck.title}</h1>
-                  <p className="text-sm text-gray-600">{currentCardIndex + 1} {t('cardOf')} {selectedDeck.cards.length}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">{t(selectedDeck.difficulty)}</span>
-                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">{t(selectedDeck.category)}</span>
-                  </div>
+      <div className={`flashcards-page ${isRTL ? 'rtl' : 'ltr'}`}>
+        <div className="flashcards-shell">
+          <section className="study-header-card">
+            <div className="study-header-main">
+              <button
+                type="button"
+                onClick={() => setView('list')}
+                className="icon-button"
+                aria-label={t('back')}
+              >
+                <Home className="w-5 h-5" />
+              </button>
+
+              <div>
+                <h1>{selectedDeck.title}</h1>
+                <p>
+                  {currentCardIndex + 1} {t('cardOf')} {selectedDeck.cards.length}
+                </p>
+
+                <div className="study-tags">
+                  <span>{t(selectedDeck.difficulty)}</span>
+                  <span>{t(selectedDeck.category)}</span>
+                  {isShuffled && <span>{t('shuffle')}</span>}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={shuffleCards} className={`p-2 rounded-lg transition-colors ${isShuffled ? 'bg-purple-500 text-white' : 'bg-purple-100 text-purple-600 hover:bg-purple-200'}`} title={t('shuffle')}><Shuffle className="w-5 h-5" /></button>
-                <button onClick={resetStudy} className="p-2 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-colors" title={t('reset')}><RotateCcw className="w-5 h-5" /></button>
+            </div>
+
+            <div className="study-header-actions">
+              <button
+                type="button"
+                onClick={shuffleCards}
+                className={`icon-button ${isShuffled ? 'active' : ''}`}
+                title={t('shuffle')}
+              >
+                <Shuffle className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={resetStudy}
+                className="icon-button"
+                title={t('reset')}
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="study-progress-block">
+              <div>
+                <span>{t('progress')}</span>
+                <span>{Math.round(progressPercentage)}%</span>
+              </div>
+
+              <div className="study-progress-bar">
+                <div style={{ width: `${progressPercentage}%` }} />
+              </div>
+
+              <div className="study-progress-dots">
+                {studyStats.cardProgress.map((status, index) => (
+                  <span
+                    key={`${status}-${index}`}
+                    className={`${getProgressColor(status)} ${
+                      index === realCardIndex ? 'current' : ''
+                    }`}
+                    title={`Card ${index + 1}: ${status}`}
+                  />
+                ))}
               </div>
             </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">{t('progress')}</span>
-                <span className="text-sm text-gray-600">{Math.round(progressPercentage)}%</span>
+          </section>
+
+          <section className="study-stats-grid">
+            <div>
+              <strong>{studyStats.correct}</strong>
+              <span><CheckCircle className="w-4 h-4" /> {t('correct')}</span>
+            </div>
+            <div>
+              <strong>{studyStats.incorrect}</strong>
+              <span><XCircle className="w-4 h-4" /> {t('incorrect')}</span>
+            </div>
+            <div>
+              <strong>{getAccuracy()}%</strong>
+              <span><Target className="w-4 h-4" /> {t('accuracy')}</span>
+            </div>
+            <div>
+              <strong>{getTimeSpent()}</strong>
+              <span><Clock className="w-4 h-4" /> {t('timeSpent')}</span>
+            </div>
+          </section>
+
+          <section className="study-card">
+            <div className="study-question">
+              <div>
+                <h2>{t('question')}</h2>
+                <span>{currentCardIndex + 1} / {selectedDeck.cards.length}</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${progressPercentage}%` }} />
-              </div>
+              <p>{currentCard.front}</p>
             </div>
-            <div className="flex flex-wrap gap-1 mt-4">
-              {studyStats.cardProgress.map((status, index) => (
-                <div key={index} className={`w-3 h-3 rounded-full ${getProgressColor(status)} ${index === currentCardIndex ? 'ring-2 ring-blue-400' : ''}`} title={`Card ${index + 1}: ${status}`} />
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-lg shadow p-4 text-center">
-              <div className="text-2xl font-bold text-green-600">{studyStats.correct}</div>
-              <div className="text-sm text-gray-600 flex items-center justify-center"><CheckCircle className="w-4 h-4 mr-1" />{t('correct')}</div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 text-center">
-              <div className="text-2xl font-bold text-red-600">{studyStats.incorrect}</div>
-              <div className="text-sm text-gray-600 flex items-center justify-center"><XCircle className="w-4 h-4 mr-1" />{t('incorrect')}</div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 text-center">
-              <div className="text-2xl font-bold text-purple-600">{getAccuracy()}%</div>
-              <div className="text-sm text-gray-600 flex items-center justify-center"><Target className="w-4 h-4 mr-1" />{t('accuracy')}</div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">{Math.floor((Date.now() - studyStats.startTime) / 60000)}</div>
-              <div className="text-sm text-gray-600 flex items-center justify-center"><Clock className="w-4 h-4 mr-1" />{t('minutes')}</div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-6">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">{t('question')}</h2>
-                <div className="text-sm opacity-75">{currentCardIndex + 1} / {selectedDeck.cards.length}</div>
-              </div>
-              <p className="text-lg leading-relaxed">{currentCard.front}</p>
-            </div>
-            <div className="p-8">
+
+            <div className="study-answer-zone">
               {showAnswer ? (
-                <div className="space-y-6">
-                  <div className="bg-green-50 border-l-4 border-green-500 p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold text-green-800 mb-3 flex items-center"><CheckCircle className="w-5 h-5 mr-2" />{t('answer')}</h3>
-                    <p className="text-green-700 text-lg leading-relaxed">{currentCard.back}</p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <button onClick={() => handleCardResponse('incorrect')} className="flex items-center justify-center py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"><XCircle className="w-5 h-5 mr-2" />{t('incorrect')} <span className="text-sm ml-2">(1)</span></button>
-                    <button onClick={() => handleCardResponse('skip')} className="flex items-center justify-center py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium"><AlertCircle className="w-5 h-5 mr-2" />{t('skip')} <span className="text-sm ml-2">(2)</span></button>
-                    <button onClick={() => handleCardResponse('correct')} className="flex items-center justify-center py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"><CheckCircle className="w-5 h-5 mr-2" />{t('correct')} <span className="text-sm ml-2">(3)</span></button>
+                <div className="study-answer">
+                  <h3>
+                    <CheckCircle className="w-5 h-5" />
+                    {t('answer')}
+                  </h3>
+                  <p>{currentCard.back}</p>
+
+                  {currentCard.conceptSource && (
+                    <small>Concept : {currentCard.conceptSource}</small>
+                  )}
+
+                  <div className="answer-actions">
+                    <button
+                      type="button"
+                      onClick={() => handleCardResponse('incorrect')}
+                      className="answer-btn incorrect"
+                    >
+                      <XCircle className="w-5 h-5" />
+                      {t('incorrect')} <span>(1)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCardResponse('skip')}
+                      className="answer-btn skip"
+                    >
+                      <AlertCircle className="w-5 h-5" />
+                      {t('skip')} <span>(2)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCardResponse('correct')}
+                      className="answer-btn correct"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      {t('correct')} <span>(3)</span>
+                    </button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setShowAnswer(true)} className="w-full py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium flex items-center justify-center"><Eye className="w-6 h-6 mr-2" />{t('showAnswer')} <span className="text-sm ml-2">(Space)</span></button>
+                <button
+                  type="button"
+                  onClick={() => setShowAnswer(true)}
+                  className="show-answer-btn"
+                >
+                  <Eye className="w-6 h-6" />
+                  {t('showAnswer')} <span>(Space)</span>
+                </button>
               )}
             </div>
-          </div>
-          <div className="flex justify-between items-center mb-6">
-            <button onClick={handlePrevious} disabled={currentCardIndex === 0} className="flex items-center px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><ChevronLeft className="w-5 h-5 mr-2" />{t('prev')}</button>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center text-sm text-gray-600"><input type="checkbox" checked={autoAdvance} onChange={(e) => setAutoAdvance(e.target.checked)} className="mr-2" />{t('autoAdvance')}</label>
-            </div>
-            <button onClick={isLastCard ? () => setView('list') : handleNext} className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              {isLastCard ? <><Trophy className="w-5 h-5 mr-2" />{t('finish')}</> : <>{t('next')}<ChevronRight className="w-5 h-5 ml-2" /></>}
+          </section>
+
+          <section className="study-bottom-nav">
+            <button
+              type="button"
+              onClick={handlePrevious}
+              disabled={currentCardIndex === 0}
+              className="btn-secondary"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              {t('prev')}
             </button>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4 text-center">
-            <p className="text-sm text-gray-600"><strong>Raccourcis clavier:</strong> Space/Enter = Afficher réponse | ←/→ = Navigation | 1/2/3 = Évaluer</p>
-          </div>
+
+            <label className="auto-advance-toggle">
+              <input
+                type="checkbox"
+                checked={autoAdvance}
+                onChange={(event) => setAutoAdvance(event.target.checked)}
+              />
+              {t('autoAdvance')}
+            </label>
+
+            <button
+              type="button"
+              onClick={isLastCard ? () => setStudyComplete(true) : handleNext}
+              className="btn-primary"
+            >
+              {isLastCard ? (
+                <>
+                  <Trophy className="w-5 h-5" />
+                  {t('finish')}
+                </>
+              ) : (
+                <>
+                  {t('next')}
+                  <ChevronRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+          </section>
+
+          <p className="keyboard-help">{t('keyboardShortcuts')}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">{t('title')}</h1>
-          <p className="text-xl text-gray-600">{t('subtitle')}</p>
-          {error && <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">{error}</div>}
-        </div>
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-4 flex-1">
-              <input type="text" placeholder={t('searchPlaceholder')} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-              <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                {categories.map(category => <option key={category.id} value={category.id}>{category.label}</option>)}
-              </select>
-            </div>
-            <button onClick={() => { if (isAuthenticatedAndPaid()) setView('generate'); else alert(t('subscriptionRequired')); }} className="flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50" disabled={!isAuthenticatedAndPaid()}><svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>{t('createFromPDF')}</button>
+    <div className={`flashcards-page ${isRTL ? 'rtl' : 'ltr'}`}>
+      <div className="flashcards-shell">
+        <header className="flashcards-hero">
+          <div>
+            <span className="flashcards-kicker">MedPlatform Maroc</span>
+            <h1>{t('title')}</h1>
+            <p>{t('subtitle')}</p>
           </div>
-        </div>
-        {customDecks.length > 0 && isAuthenticatedAndPaid() && (
-          <div className="mb-12">
-            <div className="flex items-center mb-6">
-              <div className="w-1 h-8 bg-green-600 mr-4"></div>
-              <h2 className="text-2xl font-bold text-gray-800">{t('myDecks')}</h2>
-              <span className="ml-3 bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">{customDecks.length}</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {customDecks.filter(deck => selectedCategory === 'all' || deck.category === selectedCategory).filter(deck => deck.title.toLowerCase().includes(searchQuery.toLowerCase()) || (deck.description && deck.description.toLowerCase().includes(searchQuery.toLowerCase()))).map(deck => <Card key={deck.id} deck={deck} />)}
-            </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (isAuthenticatedAndPaid()) {
+                setView('generate');
+              } else {
+                alert(t('subscriptionRequired'));
+              }
+            }}
+            className="btn-primary"
+            disabled={!isAuthenticatedAndPaid()}
+          >
+            <Plus className="w-5 h-5" />
+            {t('createFromPDF')}
+          </button>
+        </header>
+
+        {error && (
+          <div className="flashcards-alert">
+            <AlertCircle className="w-5 h-5" />
+            {error}
           </div>
         )}
-        <div className="mb-8">
-          <div className="flex items-center mb-6">
-            <div className="w-1 h-8 bg-blue-600 mr-4"></div>
-            <h2 className="text-2xl font-bold text-gray-800">{t('defaultDecks')}</h2>
+
+        <section className="flashcards-filters">
+          <div className="flashcards-search">
+            <Search className="w-5 h-5" />
+            <input
+              type="text"
+              placeholder={t('searchPlaceholder')}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {defaultFlashcardDecks.filter(deck => selectedCategory === 'all' || deck.category === selectedCategory).filter(deck => deck.title.toLowerCase().includes(searchQuery.toLowerCase()) || deck.description.toLowerCase().includes(searchQuery.toLowerCase())).map(deck => <Card key={deck.id} deck={deck} />)}
-          </div>
-        </div>
-        {loading || authLoading ? (
-          <div className="text-center py-12">
-            <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse"><svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg></div>
-            <p className="text-gray-600">{t('loading')}</p>
-          </div>
-        ) : !isAuthenticatedAndPaid() && customDecks.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg></div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">{t('noDecks')}</h3>
-            <p className="text-gray-600 mb-6">{t('subscriptionRequired')}</p>
-            <button onClick={() => navigate('/subscription')} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">{t('S\'abonner')}</button>
-          </div>
-        ) : filteredDecks.length === 0 && (
-          <div className="text-center py-12">
-            <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg></div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">{t('noDecks')}</h3>
-            <p className="text-gray-600 mb-6">{t('Créez votre premier deck en téléchargeant un PDF ou modifiez vos critères de recherche.')}</p>
-            <button onClick={() => { if (isAuthenticatedAndPaid()) setView('generate'); else alert(t('subscriptionRequired')); }} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors" disabled={!isAuthenticatedAndPaid()}>{t('createFromPDF')}</button>
-          </div>
+
+          <select
+            value={selectedCategory}
+            onChange={(event) => setSelectedCategory(event.target.value)}
+          >
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.label}
+              </option>
+            ))}
+          </select>
+        </section>
+
+        {(loading || authLoading) && (
+          <section className="flashcards-empty">
+            <div className="loading-spinner" />
+            <p>{t('loading')}</p>
+          </section>
+        )}
+
+        {!loading && !authLoading && !isAuthenticatedAndPaid() && customDecks.length === 0 && (
+          <section className="flashcards-empty">
+            <BookOpen className="w-12 h-12" />
+            <h3>{t('noDecks')}</h3>
+            <p>{t('subscriptionRequired')}</p>
+            <button
+              type="button"
+              onClick={() => navigate('/subscription')}
+              className="btn-primary"
+            >
+              {t('subscribe')}
+            </button>
+          </section>
+        )}
+
+        {!loading && !authLoading && visibleCustomDecks.length > 0 && (
+          <section className="flashcards-section">
+            <div className="section-title-row">
+              <span className="section-line green" />
+              <h2>{t('myDecks')}</h2>
+              <strong>{visibleCustomDecks.length}</strong>
+            </div>
+
+            <div className="flashcards-grid">
+              {visibleCustomDecks.map((deck) => (
+                <DeckCard key={deck.id} deck={deck} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {!loading && !authLoading && visibleDefaultDecks.length > 0 && (
+          <section className="flashcards-section">
+            <div className="section-title-row">
+              <span className="section-line blue" />
+              <h2>{t('defaultDecks')}</h2>
+            </div>
+
+            <div className="flashcards-grid">
+              {visibleDefaultDecks.map((deck) => (
+                <DeckCard key={deck.id} deck={deck} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {!loading && !authLoading && filteredDecks.length === 0 && (
+          <section className="flashcards-empty">
+            <BookOpen className="w-12 h-12" />
+            <h3>{t('noDecks')}</h3>
+            <p>{t('noResultMessage')}</p>
+            <button
+              type="button"
+              onClick={() => {
+                if (isAuthenticatedAndPaid()) {
+                  setView('generate');
+                } else {
+                  alert(t('subscriptionRequired'));
+                }
+              }}
+              className="btn-primary"
+              disabled={!isAuthenticatedAndPaid()}
+            >
+              {t('createFromPDF')}
+            </button>
+          </section>
         )}
       </div>
     </div>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
-import api from '../services/api';
 
 const UserProfile = () => {
   const { id } = useParams();
@@ -13,11 +12,12 @@ const UserProfile = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await api.get(`/users/${id}`);
-        setUser(response.data);
+        const response = await fetch(`http://localhost:5000/api/users/${id}`);
+        if (!response.ok) throw new Error(`Utilisateur non trouvé (${response.status})`);
+        const data = await response.json();
+        setUser(data);
       } catch (error) {
-        const status = error.response?.status;
-        setError(status ? `Utilisateur non trouvé (${status})` : error.message);
+        setError(error.message);
       } finally {
         setLoading(false);
       }

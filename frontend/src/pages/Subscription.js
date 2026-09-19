@@ -1,5 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import {
+  AlertCircle,
+  Check,
+  CheckCircle,
+  CreditCard,
+  GraduationCap,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Users,
+  X,
+  Zap,
+} from 'lucide-react';
+
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -7,639 +21,697 @@ const Subscription = () => {
   const { language } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState('annual');
-  const [showComparison, setShowComparison] = useState(false);
+
+  const isRTL = language === 'ar';
+
+  const [billingCycle, setBillingCycle] = useState('monthly');
+  const [selectedPlan, setSelectedPlan] = useState('student_plus');
   const [promoCode, setPromoCode] = useState('');
   const [discount, setDiscount] = useState(0);
-  const [testimonials, setTestimonials] = useState([]);
-  const [paymentError, setPaymentError] = useState(null);
+  const [loadingPlan, setLoadingPlan] = useState(null);
+  const [paymentError, setPaymentError] = useState('');
+  const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    
-    // Gestion du succès
-    if (urlParams.get('success')) {
-      setSuccess(true);
-      const timer = setTimeout(() => setSuccess(false), 5000);
-      return () => clearTimeout(timer);
-    }
+  const t = useMemo(
+    () => ({
+      fr: {
+        badge: 'Offres étudiantes',
+        title: 'Choisissez une formule adaptée à votre rythme',
+        subtitle:
+          'Cours, vidéos, quiz, flashcards IA et assistant DocBuddy pour réviser la médecine plus efficacement.',
+        trusted: 'Pensé pour les étudiants en médecine au Maroc',
+        monthly: 'Mensuel',
+        annual: 'Annuel',
+        saveAnnual: 'Économisez environ 2 mois',
+        free: 'Gratuit',
+        student: 'Étudiant Plus',
+        premium: 'Premium Révision',
+        annualPlan: 'Annuel Étudiant',
+        freeDesc: 'Pour découvrir la plateforme',
+        studentDesc: 'Le meilleur choix pour réviser régulièrement',
+        premiumDesc: 'Pour une préparation intensive',
+        annualDesc: 'Le plus économique sur l’année',
+        mad: 'MAD',
+        dhs: 'DHS',
+        perMonth: '/ mois',
+        perYear: '/ an',
+        choosePlan: 'Choisir cette formule',
+        currentPlan: 'Formule recommandée',
+        popular: 'Le plus populaire',
+        bestValue: 'Meilleur prix',
+        included: 'Inclus',
+        promoTitle: 'Code promo étudiant',
+        promoPlaceholder: 'Ex : MEDSTUDENT',
+        apply: 'Appliquer',
+        invalidPromo: 'Code promo invalide.',
+        promoApplied: 'Réduction appliquée',
+        paymentErrorTitle: 'Paiement indisponible',
+        paymentErrorMessage:
+          'Le paiement en ligne n’est pas encore connecté. Vous pouvez garder cette page prête et connecter Stripe, PayPal ou un paiement local ensuite.',
+        close: 'Fermer',
+        contactUs: 'Nous contacter',
+        loginRequired: 'Connectez-vous pour choisir une formule.',
+        success: 'Formule sélectionnée avec succès.',
+        guarantee: 'Sans engagement sur les formules mensuelles',
+        securePayment: 'Paiement sécurisé à connecter',
+        studentPrice: 'Prix adaptés aux étudiants',
+        support: 'Support pédagogique',
+        comparisonTitle: 'Comparatif rapide',
+        faqTitle: 'Questions fréquentes',
+        termsStart: 'En continuant, vous acceptez nos',
+        terms: 'conditions d’utilisation',
+        privacy: 'politique de confidentialité',
+        backLogin: 'Retour à la connexion',
+        freeFeatures: [
+          'Accès limité aux cours publics',
+          'Quelques quiz de démonstration',
+          'Flashcards par défaut',
+          'Suivi de progression basique',
+        ],
+        studentFeatures: [
+          'Tous les cours et vidéos',
+          'Quiz illimités',
+          'Flashcards IA depuis PDF',
+          'DocBuddy assistant médical',
+          'Tableau de bord étudiant',
+          'Sauvegarde de progression',
+        ],
+        premiumFeatures: [
+          'Tout Étudiant Plus',
+          'Génération de quiz IA avancée',
+          'Plus de flashcards IA',
+          'Révisions ciblées par matière',
+          'Priorité sur les nouveautés',
+          'Support prioritaire',
+        ],
+        annualFeatures: [
+          'Tout Étudiant Plus pendant 12 mois',
+          'Prix mensuel réduit',
+          'Idéal pour toute l’année universitaire',
+          'Accès aux futures mises à jour',
+          'Préparation examens et stages',
+          'Support inclus',
+        ],
+        faq: [
+          {
+            q: 'Puis-je utiliser la plateforme sans payer ?',
+            a: 'Oui, une formule gratuite permet de découvrir les cours, quiz et flashcards de base.',
+          },
+          {
+            q: 'Les prix sont-ils en dirhams marocains ?',
+            a: 'Oui, les montants sont affichés en MAD / DHS pour être adaptés aux étudiants au Maroc.',
+          },
+          {
+            q: 'Est-ce que DocBuddy remplace un médecin ?',
+            a: 'Non. DocBuddy est un assistant pédagogique. Il aide à comprendre les notions médicales, mais ne donne pas de diagnostic définitif.',
+          },
+        ],
+      },
+      ar: {
+        badge: 'عروض للطلبة',
+        title: 'اختر الخطة المناسبة لطريقة دراستك',
+        subtitle:
+          'دروس، فيديوهات، اختبارات، بطاقات تعليمية بالذكاء الاصطناعي ومساعد DocBuddy لمراجعة الطب بفعالية.',
+        trusted: 'مصممة لطلبة الطب في المغرب',
+        monthly: 'شهري',
+        annual: 'سنوي',
+        saveAnnual: 'وفّر تقريباً شهرين',
+        free: 'مجاني',
+        student: 'طالب بلس',
+        premium: 'مراجعة بريميوم',
+        annualPlan: 'الخطة السنوية للطالب',
+        freeDesc: 'لاكتشاف المنصة',
+        studentDesc: 'الخيار الأفضل للمراجعة المنتظمة',
+        premiumDesc: 'للتحضير المكثف',
+        annualDesc: 'الأوفر خلال السنة',
+        mad: 'درهم',
+        dhs: 'MAD',
+        perMonth: '/ شهر',
+        perYear: '/ سنة',
+        choosePlan: 'اختيار هذه الخطة',
+        currentPlan: 'الخطة المقترحة',
+        popular: 'الأكثر اختياراً',
+        bestValue: 'أفضل سعر',
+        included: 'يشمل',
+        promoTitle: 'كود خصم للطلبة',
+        promoPlaceholder: 'مثال: MEDSTUDENT',
+        apply: 'تطبيق',
+        invalidPromo: 'كود الخصم غير صالح.',
+        promoApplied: 'تم تطبيق الخصم',
+        paymentErrorTitle: 'الدفع غير متاح حالياً',
+        paymentErrorMessage:
+          'الدفع الإلكتروني غير مربوط بعد. يمكنك الاحتفاظ بهذه الصفحة وربط Stripe أو PayPal أو وسيلة دفع محلية لاحقاً.',
+        close: 'إغلاق',
+        contactUs: 'تواصل معنا',
+        loginRequired: 'يرجى تسجيل الدخول لاختيار خطة.',
+        success: 'تم اختيار الخطة بنجاح.',
+        guarantee: 'بدون التزام في الخطط الشهرية',
+        securePayment: 'دفع آمن سيتم ربطه',
+        studentPrice: 'أسعار مناسبة للطلبة',
+        support: 'دعم تعليمي',
+        comparisonTitle: 'مقارنة سريعة',
+        faqTitle: 'أسئلة شائعة',
+        termsStart: 'بالمتابعة، فإنك توافق على',
+        terms: 'شروط الاستخدام',
+        privacy: 'سياسة الخصوصية',
+        backLogin: 'العودة إلى تسجيل الدخول',
+        freeFeatures: [
+          'ولوج محدود للدروس المجانية',
+          'بعض الاختبارات التجريبية',
+          'بطاقات تعليمية افتراضية',
+          'تتبع بسيط للتقدم',
+        ],
+        studentFeatures: [
+          'كل الدروس والفيديوهات',
+          'اختبارات غير محدودة',
+          'بطاقات تعليمية من PDF بالذكاء الاصطناعي',
+          'مساعد طبي DocBuddy',
+          'لوحة تحكم الطالب',
+          'حفظ التقدم',
+        ],
+        premiumFeatures: [
+          'كل مزايا طالب بلس',
+          'إنشاء اختبارات متقدمة بالذكاء الاصطناعي',
+          'عدد أكبر من البطاقات التعليمية',
+          'مراجعة حسب المادة',
+          'أولوية في التحديثات الجديدة',
+          'دعم بأولوية',
+        ],
+        annualFeatures: [
+          'كل مزايا طالب بلس لمدة 12 شهراً',
+          'سعر شهري مخفض',
+          'مثالية للسنة الجامعية كاملة',
+          'ولوج للتحديثات القادمة',
+          'تحضير للامتحانات والتداريب',
+          'دعم مشمول',
+        ],
+        faq: [
+          {
+            q: 'هل يمكن استعمال المنصة مجاناً؟',
+            a: 'نعم، توجد خطة مجانية لاكتشاف الدروس والاختبارات والبطاقات الأساسية.',
+          },
+          {
+            q: 'هل الأسعار بالدرهم المغربي؟',
+            a: 'نعم، الأسعار معروضة بالدرهم المغربي MAD لتناسب الطلبة في المغرب.',
+          },
+          {
+            q: 'هل DocBuddy يعوض الطبيب؟',
+            a: 'لا. DocBuddy مساعد تعليمي لفهم المفاهيم الطبية، ولا يقدم تشخيصاً طبياً نهائياً.',
+          },
+        ],
+      },
+    }),
+    []
+  );
 
-    // Gestion des erreurs de paiement
-    if (urlParams.get('payment_error')) {
-      setPaymentError({
-        code: urlParams.get('error_code') || 'PAYMENT_FAILED',
-        message: urlParams.get('error_message') || 'Une erreur est survenue lors du paiement'
-      });
-    }
+  const text = t[language] || t.fr;
 
-    loadTestimonials();
-  }, []);
-
-  const loadTestimonials = () => {
-    const mockTestimonials = [
+  const plans = useMemo(
+    () => [
       {
-        id: 1,
-        name: language === 'fr' ? 'Dr. Sarah Martin' : 'د. سارة مارتن',
-        specialty: language === 'fr' ? 'Cardiologue' : 'طبيب قلب',
-        comment: language === 'fr' 
-          ? 'Cette plateforme a révolutionné ma formation continue. Les cours sont excellents!'
-          : 'لقد غيرت هذه المنصة تعليمي المستمر. الدورات ممتازة!',
-        rating: 5,
-        avatar: '👩‍⚕️'
+        id: 'free',
+        name: text.free,
+        description: text.freeDesc,
+        monthlyPrice: 0,
+        annualPrice: 0,
+        period: billingCycle === 'annual' ? text.perYear : text.perMonth,
+        badge: null,
+        icon: GraduationCap,
+        color: 'gray',
+        features: text.freeFeatures,
       },
       {
-        id: 2,
-        name: language === 'fr' ? 'Dr. Ahmed Benali' : 'د. أحمد بن علي',
-        specialty: language === 'fr' ? 'Neurologue' : 'طبيب أعصاب',
-        comment: language === 'fr'
-          ? 'Les flashcards et quiz sont parfaits pour réviser. Je recommande vivement!'
-          : 'البطاقات التعليمية والاختبارات مثالية للمراجعة. أنصح بشدة!',
-        rating: 5,
-        avatar: '👨‍⚕️'
-      }
-    ];
-    setTestimonials(mockTestimonials);
+        id: 'student_plus',
+        name: text.student,
+        description: text.studentDesc,
+        monthlyPrice: 49,
+        annualPrice: 490,
+        period: billingCycle === 'annual' ? text.perYear : text.perMonth,
+        badge: text.popular,
+        icon: Sparkles,
+        color: 'blue',
+        features: text.studentFeatures,
+      },
+      {
+        id: 'premium',
+        name: text.premium,
+        description: text.premiumDesc,
+        monthlyPrice: 79,
+        annualPrice: 790,
+        period: billingCycle === 'annual' ? text.perYear : text.perMonth,
+        badge: billingCycle === 'monthly' ? text.currentPlan : null,
+        icon: Zap,
+        color: 'purple',
+        features: text.premiumFeatures,
+      },
+      {
+        id: 'annual_student',
+        name: text.annualPlan,
+        description: text.annualDesc,
+        monthlyPrice: 59,
+        annualPrice: 399,
+        period: text.perYear,
+        badge: text.bestValue,
+        icon: ShieldCheck,
+        color: 'green',
+        features: text.annualFeatures,
+        forceAnnual: true,
+      },
+    ],
+    [text, billingCycle]
+  );
+
+  const getBasePrice = (plan) => {
+    if (plan.forceAnnual) return plan.annualPrice;
+    return billingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice;
+  };
+
+  const getFinalPrice = (plan) => {
+    const base = getBasePrice(plan);
+    if (base === 0) return 0;
+    return Math.round(base * (1 - discount / 100));
+  };
+
+  const getMonthlyEquivalent = (plan) => {
+    if (plan.forceAnnual || billingCycle === 'annual') {
+      return Math.round(getFinalPrice(plan) / 12);
+    }
+    return getFinalPrice(plan);
+  };
+
+  const colorClasses = {
+    gray: {
+      border: 'border-gray-200',
+      badge: 'bg-gray-100 text-gray-700',
+      icon: 'bg-gray-100 text-gray-700',
+      button: 'bg-gray-800 hover:bg-gray-900 text-white',
+      price: 'text-gray-900',
+    },
+    blue: {
+      border: 'border-blue-500',
+      badge: 'bg-blue-600 text-white',
+      icon: 'bg-blue-100 text-blue-700',
+      button: 'bg-blue-600 hover:bg-blue-700 text-white',
+      price: 'text-blue-700',
+    },
+    purple: {
+      border: 'border-purple-300',
+      badge: 'bg-purple-600 text-white',
+      icon: 'bg-purple-100 text-purple-700',
+      button: 'bg-purple-600 hover:bg-purple-700 text-white',
+      price: 'text-purple-700',
+    },
+    green: {
+      border: 'border-green-500',
+      badge: 'bg-green-600 text-white',
+      icon: 'bg-green-100 text-green-700',
+      button: 'bg-green-600 hover:bg-green-700 text-white',
+      price: 'text-green-700',
+    },
   };
 
   const applyPromoCode = () => {
-    setLoading(true);
-    setTimeout(() => {
-      if (promoCode.toLowerCase() === 'medstudent') {
-        setDiscount(30);
-      } else if (promoCode.toLowerCase() === 'welcome20') {
-        setDiscount(20);
-      } else {
-        alert(t.invalidPromo);
-      }
-      setLoading(false);
-    }, 1000);
-  };
+    const code = promoCode.trim().toLowerCase();
 
-  const calculatePrice = (originalPrice) => {
-    if (discount > 0) {
-      return (originalPrice * (1 - discount / 100)).toFixed(2);
+    if (!code) return;
+
+    if (code === 'medstudent') {
+      setDiscount(20);
+      return;
     }
-    return originalPrice;
+
+    if (code === 'welcome10') {
+      setDiscount(10);
+      return;
+    }
+
+    if (code === 'exam25') {
+      setDiscount(25);
+      return;
+    }
+
+    setDiscount(0);
+    alert(text.invalidPromo);
   };
 
-  const handleSubscription = async (planType) => {
-    setLoading(true);
-    setPaymentError(null);
+  const handleSubscription = async (plan) => {
+    setPaymentError('');
+    setSuccess(false);
+
+    if (!user) {
+      navigate('/login', {
+        state: {
+          from: {
+            pathname: '/subscription',
+          },
+        },
+      });
+      return;
+    }
+
+    if (plan.id === 'free') {
+      setSuccess(true);
+      setTimeout(() => navigate('/dashboard'), 1200);
+      return;
+    }
+
+    setLoadingPlan(plan.id);
 
     try {
-      // Vérifier si l'utilisateur est connecté
-      if (!user) {
-        navigate('/login?redirect=' + encodeURIComponent('/subscription'));
-        return;
-      }
+      const planRouteMap = {
+        student_plus: 'etudiant',
+        premium: 'premium',
+        annual_student: 'annuel',
+        free: 'free',
+      };
 
-      // Simulation d'appel API pour créer une session de paiement
-      const response = await fetch('/api/create-payment-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.token}`
-        },
-        body: JSON.stringify({
-          planType,
-          discount,
-          promoCode,
-          userId: user.id
-        })
+      const routePlan = planRouteMap[plan.id] || plan.id;
+
+      const queryParams = new URLSearchParams({
+        discount: String(discount || 0),
+        amount: String(getFinalPrice(plan)),
+        currency: 'MAD',
+        billingCycle: plan.forceAnnual ? 'annual' : billingCycle,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Rediriger vers la page d'erreur avec les détails
-        const errorParams = new URLSearchParams({
-          error: data.error_code || 'PAYMENT_SESSION_FAILED',
-          error_description: data.message || 'Impossible de créer la session de paiement'
-        });
-        
-        navigate(`/payment-error?${errorParams.toString()}`);
-        return;
-      }
-
-      // Rediriger vers la page de paiement ou vers Stripe/PayPal
-      if (data.payment_url) {
-        window.location.href = data.payment_url;
-      } else {
-        navigate(`/payment/${planType}?session_id=${data.session_id}&discount=${discount}`);
-      }
-
+      navigate(`/payment/${routePlan}?${queryParams.toString()}`);
     } catch (error) {
       console.error('Subscription error:', error);
-      
-      // Gestion des différents types d'erreurs
-      let errorCode = 'NETWORK_ERROR';
-      let errorMessage = 'Erreur de connexion. Veuillez vérifier votre connexion internet.';
-
-      if (error.name === 'TypeError') {
-        errorCode = 'NETWORK_ERROR';
-        errorMessage = 'Impossible de contacter le serveur. Vérifiez votre connexion internet.';
-      } else if (error.message.includes('timeout')) {
-        errorCode = 'TIMEOUT_ERROR';
-        errorMessage = 'La requête a pris trop de temps. Veuillez réessayer.';
-      }
-
-      setPaymentError({
-        code: errorCode,
-        message: errorMessage
-      });
-
+      setPaymentError(error.message || text.paymentErrorMessage);
     } finally {
-      setLoading(false);
+      setLoadingPlan(null);
     }
   };
 
-  const handlePaymentErrorRetry = () => {
-    setPaymentError(null);
-  };
-
-  const redirectToPaymentError = () => {
-    const errorParams = new URLSearchParams({
-      error: paymentError.code,
-      error_description: paymentError.message
-    });
-    navigate(`/payment-error?${errorParams.toString()}`);
-  };
-
-  const t = {
-    fr: {
-      title: 'Choisissez Votre Plan',
-      subtitle: 'Accédez à plus de 500 heures de contenu médical premium',
-      description: 'Rejoignez plus de 10,000 professionnels de santé qui font confiance à notre plateforme.',
-      monthly: 'Plan Mensuel',
-      monthlyDesc: 'Parfait pour essayer notre plateforme',
-      annual: 'Plan Annuel',
-      annualDesc: 'Le meilleur rapport qualité-prix',
-      student: 'Plan Étudiant',
-      studentDesc: 'Tarif spécial pour les étudiants en médecine',
-      priceMonthly: '29.99',
-      priceAnnual: '299.99',
-      priceStudent: '19.99',
-      currency: '€',
-      save: 'Économisez 17%',
-      subscribe: 'Choisir ce plan',
-      terms: 'En vous abonnant, vous acceptez nos ',
-      termsLink: 'conditions générales',
-      success: 'Abonnement réussi !',
-      back: 'Retour à la connexion',
-      mostPopular: 'Le plus populaire',
-      features: 'Fonctionnalités incluses :',
-      feature1: '✓ Accès illimité à tous les cours',
-      feature2: '✓ Flashcards interactives',
-      feature3: '✓ Quiz et évaluations',
-      feature4: '✓ Certificats de formation',
-      feature5: '✓ Support 24/7',
-      feature6: '✓ Mise à jour continue du contenu',
-      promoCode: 'Code promo',
-      applyPromo: 'Appliquer',
-      comparison: 'Comparer les plans',
-      testimonials: 'Ce que disent nos utilisateurs',
-      invalidPromo: 'Code promo invalide',
-      loading: 'Chargement...',
-      guarantee: '🛡️ Garantie satisfait ou remboursé 30 jours'
-    },
-    ar: {
-      title: 'اختر خطتك',
-      subtitle: 'احصل على أكثر من 500 ساعة من المحتوى الطبي المتميز',
-      description: 'انضم إلى أكثر من 10,000 من المهنيين الصحيين الذين يثقون في منصتنا.',
-      monthly: 'خطة شهرية',
-      monthlyDesc: 'مثالية لتجربة منصتنا',
-      annual: 'خطة سنوية',
-      annualDesc: 'أفضل قيمة مقابل المال',
-      student: 'خطة الطلاب',
-      studentDesc: 'سعر خاص لطلاب الطب',
-      priceMonthly: '29.99',
-      priceAnnual: '299.99',
-      priceStudent: '19.99',
-      currency: '€',
-      save: 'وفر 17%',
-      subscribe: 'اختر هذه الخطة',
-      terms: 'بالاشتراك، تقبل شروطنا ',
-      termsLink: 'الشروط والأحكام',
-      success: 'تم الاشتراك بنجاح!',
-      back: 'العودة إلى تسجيل الدخول',
-      mostPopular: 'الأكثر شعبية',
-      features: 'الميزات المتضمنة:',
-      feature1: '✓ وصول غير محدود لجميع الدورات',
-      feature2: '✓ بطاقات تعليمية تفاعلية',
-      feature3: '✓ اختبارات وتقييمات',
-      feature4: '✓ شهادات التدريب',
-      feature5: '✓ دعم 24/7',
-      feature6: '✓ تحديث مستمر للمحتوى',
-      promoCode: 'كود الخصم',
-      applyPromo: 'تطبيق',
-      comparison: 'مقارنة الخطط',
-      testimonials: 'ماذا يقول مستخدمونا',
-      invalidPromo: 'كود خصم غير صالح',
-      loading: 'جاري التحميل...',
-      guarantee: '🛡️ ضمان استرداد المال لمدة 30 يومًا'
-    },
-  }[language];
-
   return (
-    <div className={`page-container min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 ${language === 'ar' ? 'rtl' : 'ltr'}`}>
-      
-      {/* Affichage des erreurs de paiement */}
-      {paymentError && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg shadow-lg p-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <h3 className="text-sm font-medium text-red-800">
-                  Erreur de paiement
-                </h3>
-                <div className="mt-1 text-sm text-red-700">
-                  <p>{paymentError.message}</p>
+    <main
+      className={`min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 px-4 py-12 ${
+        isRTL ? 'rtl' : 'ltr'
+      }`}
+    >
+      {(paymentError || success) && (
+        <div className="fixed top-4 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2">
+          {paymentError && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-xl">
+              <div className="flex gap-3">
+                <AlertCircle className="mt-0.5 h-6 w-6 flex-shrink-0 text-amber-600" />
+                <div className="flex-1">
+                  <h3 className="font-bold text-amber-900">{text.paymentErrorTitle}</h3>
+                  <p className="mt-1 text-sm text-amber-800">{paymentError}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentError('')}
+                      className="rounded-lg bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-200"
+                    >
+                      {text.close}
+                    </button>
+                    <NavLink
+                      to="/contact"
+                      className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+                    >
+                      {text.contactUs}
+                    </NavLink>
+                  </div>
                 </div>
-                <div className="mt-3 flex space-x-2">
-                  <button
-                    onClick={handlePaymentErrorRetry}
-                    className="bg-red-100 text-red-800 px-3 py-1 rounded-md text-xs font-medium hover:bg-red-200 transition-colors"
-                  >
-                    Fermer
-                  </button>
-                  <button
-                    onClick={redirectToPaymentError}
-                    className="bg-red-600 text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-red-700 transition-colors"
-                  >
-                    Voir les solutions
-                  </button>
-                </div>
-              </div>
-              <div className="ml-3 flex-shrink-0">
                 <button
-                  onClick={handlePaymentErrorRetry}
-                  className="text-red-400 hover:text-red-600"
+                  type="button"
+                  onClick={() => setPaymentError('')}
+                  className="text-amber-700 hover:text-amber-900"
+                  aria-label={text.close}
                 >
-                  <span className="sr-only">Fermer</span>
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
+                  <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
-          </div>
+          )}
+
+          {success && (
+            <div className="rounded-2xl border border-green-200 bg-green-50 p-4 shadow-xl">
+              <div className="flex items-center gap-3 text-green-800">
+                <CheckCircle className="h-6 w-6" />
+                <p className="font-semibold">{text.success}</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Success message */}
-      {success && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
-          <div className="bg-green-50 border border-green-200 rounded-lg shadow-lg p-4">
-            <div className="flex items-center">
-              <svg className="h-5 w-5 text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-              <p className="text-green-800 font-medium">✅ {t.success}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Hero Section */}
-      <div className="pt-20 pb-12 text-center">
-        <div className="max-w-4xl mx-auto px-6">
-          <h1 className="text-5xl font-bold mb-4 text-gray-800 leading-tight">
-            {t.title}
-          </h1>
-          <p className="text-xl text-gray-600 mb-6">{t.subtitle}</p>
-          <p className="text-lg text-gray-500 mb-8">{t.description}</p>
-          
-          <div className="flex justify-center items-center space-x-4 mb-8">
-            <div className="flex items-center">
-              <div className="flex -space-x-2">
-                {['👨‍⚕️', '👩‍⚕️', '🧑‍⚕️', '👨‍🔬', '👩‍🔬'].map((emoji, i) => (
-                  <div key={i} className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center border-2 border-white">
-                    <span>{emoji}</span>
-                  </div>
-                ))}
-              </div>
-              <span className="ml-3 text-gray-600">+10,000 professionnels</span>
-            </div>
-          </div>
-
-          {/* Plan Toggle */}
-          <div className="flex justify-center mb-12">
-            <div className="bg-gray-100 p-1 rounded-xl">
-              <button
-                onClick={() => setSelectedPlan('monthly')}
-                className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                  selectedPlan === 'monthly'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                {t.monthly}
-              </button>
-              <button
-                onClick={() => setSelectedPlan('annual')}
-                className={`px-6 py-3 rounded-lg font-medium transition-all ${
-                  selectedPlan === 'annual'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                {t.annual}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Pricing Plans */}
-      <div className="max-w-6xl mx-auto px-6 pb-20">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          
-          {/* Plan Mensuel */}
-          <div className={`bg-white rounded-2xl shadow-lg p-8 border-2 ${selectedPlan === 'monthly' ? 'border-blue-500 transform scale-105' : 'border-gray-200'} hover:shadow-xl transition-all duration-300`}>
-            <div className="text-center">
-              <h3 className="text-2xl font-bold mb-2">{t.monthly}</h3>
-              <p className="text-gray-600 mb-6">{t.monthlyDesc}</p>
-              
-              <div className="mb-6">
-                <span className="text-4xl font-bold text-blue-600">
-                  {discount > 0 && (
-                    <span className="text-lg text-gray-400 line-through mr-2">
-                      {t.priceMonthly}{t.currency}
-                    </span>
-                  )}
-                  {calculatePrice(29.99)}{t.currency}
-                </span>
-                <span className="text-gray-500 block">/mois</span>
-              </div>
-
-              <button
-                onClick={() => handleSubscription('mensuel')}
-                disabled={loading}
-                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all mb-6 ${
-                  loading 
-                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
-                    : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg transform hover:scale-105'
-                }`}
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {t.loading}
-                  </span>
-                ) : (
-                  t.subscribe
-                )}
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <p className="font-semibold text-gray-800">{t.features}</p>
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>{t.feature1}</p>
-                <p>{t.feature2}</p>
-                <p>{t.feature3}</p>
-                <p>{t.feature5}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Plan Annuel - Most Popular */}
-          <div className="bg-white rounded-2xl shadow-2xl p-8 border-2 border-blue-500 transform scale-105 relative">
-            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-              <span className="bg-blue-500 text-white px-6 py-2 rounded-full text-sm font-bold">
-                {t.mostPopular}
-              </span>
-            </div>
-            
-            <div className="text-center">
-              <h3 className="text-2xl font-bold mb-2">{t.annual}</h3>
-              <p className="text-gray-600 mb-4">{t.annualDesc}</p>
-              <span className="bg-green-100 text-green-600 px-3 py-1 rounded-full text-sm font-bold">
-                {t.save}
-              </span>
-              
-              <div className="my-6">
-                <span className="text-5xl font-bold text-blue-600">
-                  {discount > 0 && (
-                    <span className="text-lg text-gray-400 line-through mr-2">
-                      {t.priceAnnual}{t.currency}
-                    </span>
-                  )}
-                  {calculatePrice(299.99)}{t.currency}
-                </span>
-                <span className="text-gray-500 block">/an</span>
-                <span className="text-sm text-gray-400">~{(calculatePrice(299.99)/12).toFixed(2)}{t.currency}/mois</span>
-              </div>
-
-              <button
-                onClick={() => handleSubscription('annuel')}
-                disabled={loading}
-                className={`w-full py-4 px-6 rounded-lg font-semibold transition-all mb-6 shadow-lg ${
-                  loading 
-                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
-                    : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
-                }`}
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {t.loading}
-                  </span>
-                ) : (
-                  t.subscribe
-                )}
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <p className="font-semibold text-gray-800">{t.features}</p>
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>{t.feature1}</p>
-                <p>{t.feature2}</p>
-                <p>{t.feature3}</p>
-                <p>{t.feature4}</p>
-                <p>{t.feature5}</p>
-                <p>{t.feature6}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Plan Étudiant */}
-          <div className={`bg-white rounded-2xl shadow-lg p-8 border-2 ${selectedPlan === 'student' ? 'border-green-500 transform scale-105' : 'border-gray-200'} hover:shadow-xl transition-all duration-300`}>
-            <div className="text-center">
-              <h3 className="text-2xl font-bold mb-2">{t.student}</h3>
-              <p className="text-gray-600 mb-6">{t.studentDesc}</p>
-              
-              <div className="mb-6">
-                <span className="text-4xl font-bold text-green-600">
-                  {discount > 0 && (
-                    <span className="text-lg text-gray-400 line-through mr-2">
-                      {t.priceStudent}{t.currency}
-                    </span>
-                  )}
-                  {calculatePrice(19.99)}{t.currency}
-                </span>
-                <span className="text-gray-500 block">/mois</span>
-              </div>
-
-              <button
-                onClick={() => handleSubscription('etudiant')}
-                disabled={loading}
-                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all mb-6 ${
-                  loading 
-                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
-                    : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-lg transform hover:scale-105'
-                }`}
-              >
-                {loading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {t.loading}
-                  </span>
-                ) : (
-                  t.subscribe
-                )}
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <p className="font-semibold text-gray-800">{t.features}</p>
-              <div className="text-sm text-gray-600 space-y-2">
-                <p>{t.feature1}</p>
-                <p>{t.feature2}</p>
-                <p>{t.feature3}</p>
-                <p>{t.feature5}</p>
-              </div>
-            </div>
-          </div>
+      <section className="mx-auto max-w-6xl text-center">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm">
+          <GraduationCap className="h-4 w-4" />
+          {text.badge}
         </div>
 
-        {/* Code Promo */}
-        <div className="mt-12 max-w-md mx-auto">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-bold mb-4 text-center">🎉 {t.promoCode}</h3>
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                placeholder="MEDSTUDENT, WELCOME20..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <button
-                onClick={applyPromoCode}
-                disabled={loading || !promoCode}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        <h1 className="mx-auto max-w-4xl text-4xl font-extrabold leading-tight text-gray-900 md:text-6xl">
+          {text.title}
+        </h1>
+
+        <p className="mx-auto mt-5 max-w-3xl text-lg leading-relaxed text-gray-600">
+          {text.subtitle}
+        </p>
+
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-sm text-gray-600">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-sm">
+            <Users className="h-4 w-4 text-blue-600" />
+            {text.trusted}
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-sm">
+            <ShieldCheck className="h-4 w-4 text-green-600" />
+            {text.guarantee}
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-sm">
+            <CreditCard className="h-4 w-4 text-purple-600" />
+            {text.securePayment}
+          </span>
+        </div>
+
+        <div className="mt-10 inline-flex rounded-2xl bg-gray-100 p-1 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setBillingCycle('monthly')}
+            className={`rounded-xl px-6 py-3 font-semibold transition ${
+              billingCycle === 'monthly'
+                ? 'bg-white text-blue-700 shadow'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {text.monthly}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBillingCycle('annual')}
+            className={`rounded-xl px-6 py-3 font-semibold transition ${
+              billingCycle === 'annual'
+                ? 'bg-white text-blue-700 shadow'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {text.annual}
+            <span className="ml-2 rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
+              {text.saveAnnual}
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section className="mx-auto mt-12 max-w-6xl">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+          {plans.map((plan) => {
+            const Icon = plan.icon;
+            const colors = colorClasses[plan.color];
+            const isSelected = selectedPlan === plan.id;
+            const price = getFinalPrice(plan);
+
+            return (
+              <article
+                key={plan.id}
+                className={`relative flex flex-col rounded-3xl border-2 bg-white p-6 shadow-lg transition hover:-translate-y-1 hover:shadow-2xl ${
+                  isSelected ? colors.border : 'border-gray-200'
+                } ${plan.id === 'student_plus' ? 'lg:scale-105' : ''}`}
+                onClick={() => setSelectedPlan(plan.id)}
               >
-                {t.applyPromo}
-              </button>
-            </div>
-            {discount > 0 && (
-              <div className="mt-3 text-center text-green-600 font-semibold">
-                🎉 Réduction de {discount}% appliquée !
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Garantie */}
-        <div className="mt-12 text-center">
-          <p className="text-lg font-semibold text-gray-700">{t.guarantee}</p>
-        </div>
-
-        {/* Témoignages */}
-        <div className="mt-16">
-          <h2 className="text-3xl font-bold text-center mb-12 text-gray-800">{t.testimonials}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {testimonials.map((testimonial) => (
-              <div key={testimonial.id} className="bg-white rounded-xl shadow-lg p-6">
-                <div className="flex items-center mb-4">
-                  <span className="text-3xl mr-3">{testimonial.avatar}</span>
-                  <div>
-                    <h4 className="font-bold text-gray-800">{testimonial.name}</h4>
-                    <p className="text-sm text-gray-600">{testimonial.specialty}</p>
-                  </div>
-                </div>
-                <div className="flex mb-3">
-                  {[...Array(testimonial.rating)].map((_, i) => (
-                    <span key={i} className="text-yellow-400">⭐</span>
-                  ))}
-                </div>
-                <p className="text-gray-700 italic">"{testimonial.comment}"</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Enhanced error handling section */}
-        {paymentError && (
-          <div className="mt-12 max-w-2xl mx-auto">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-bold text-red-600 mb-2">Erreur de traitement</h3>
-                <p className="text-red-700 mb-4">{paymentError.message}</p>
-                <div className="space-y-2">
-                  <button
-                    onClick={handlePaymentErrorRetry}
-                    className="w-full bg-red-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                {plan.badge && (
+                  <div
+                    className={`absolute -top-4 left-1/2 -translate-x-1/2 rounded-full px-4 py-2 text-xs font-bold shadow ${colors.badge}`}
                   >
-                    Réessayer
-                  </button>
-                  <button
-                    onClick={redirectToPaymentError}
-                    className="w-full bg-gray-500 text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
-                  >
-                    Voir toutes les solutions
-                  </button>
+                    {plan.badge}
+                  </div>
+                )}
+
+                <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-2xl ${colors.icon}`}>
+                  <Icon className="h-6 w-6" />
                 </div>
-              </div>
-            </div>
+
+                <h2 className="text-2xl font-bold text-gray-900">{plan.name}</h2>
+                <p className="mt-2 min-h-[48px] text-sm leading-relaxed text-gray-600">
+                  {plan.description}
+                </p>
+
+                <div className="mt-6">
+                  {discount > 0 && getBasePrice(plan) > 0 && (
+                    <div className="mb-1 text-sm text-gray-400 line-through">
+                      {getBasePrice(plan)} {text.dhs}
+                    </div>
+                  )}
+
+                  <div className={`text-4xl font-extrabold ${colors.price}`}>
+                    {price === 0 ? '0' : price}
+                    <span className="ml-1 text-base font-semibold text-gray-500">{text.dhs}</span>
+                  </div>
+
+                  <div className="mt-1 text-sm text-gray-500">
+                    {price === 0 ? text.freeDesc : plan.period}
+                  </div>
+
+                  {price > 0 && (plan.forceAnnual || billingCycle === 'annual') && (
+                    <div className="mt-2 text-xs font-medium text-green-700">
+                      ≈ {getMonthlyEquivalent(plan)} {text.dhs} {text.perMonth}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleSubscription(plan);
+                  }}
+                  disabled={loadingPlan === plan.id}
+                  className={`mt-6 w-full rounded-xl px-4 py-3 font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${colors.button}`}
+                >
+                  {loadingPlan === plan.id ? (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      {language === 'fr' ? 'Traitement...' : 'جاري المعالجة...'}
+                    </span>
+                  ) : (
+                    text.choosePlan
+                  )}
+                </button>
+
+                <div className="mt-6 flex-1">
+                  <p className="mb-3 font-bold text-gray-900">{text.included}</p>
+                  <ul className="space-y-3">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex gap-3 text-sm text-gray-700">
+                        <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="mx-auto mt-12 max-w-xl rounded-3xl border border-blue-100 bg-white p-6 shadow-lg">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900">🎓 {text.promoTitle}</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            MEDSTUDENT = 20%, WELCOME10 = 10%, EXAM25 = 25%
+          </p>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <input
+            type="text"
+            value={promoCode}
+            onChange={(event) => setPromoCode(event.target.value)}
+            placeholder={text.promoPlaceholder}
+            className="flex-1 rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          />
+
+          <button
+            type="button"
+            onClick={applyPromoCode}
+            className="rounded-xl bg-blue-600 px-6 py-3 font-bold text-white transition hover:bg-blue-700"
+          >
+            {text.apply}
+          </button>
+        </div>
+
+        {discount > 0 && (
+          <div className="mt-4 rounded-xl bg-green-50 px-4 py-3 text-center font-semibold text-green-700">
+            {text.promoApplied} : -{discount}%
           </div>
         )}
+      </section>
 
-        {/* Terms & Success Message */}
-        <div className="text-center mt-12">
-          <div className="text-gray-500 mb-6">
-            {t.terms}
-            <NavLink to="/terms" className="text-blue-600 hover:text-blue-800 underline ml-1">
-              {t.termsLink}
+      <section className="mx-auto mt-16 max-w-6xl">
+        <h2 className="text-center text-3xl font-bold text-gray-900">{text.comparisonTitle}</h2>
+
+        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+          {[
+            { icon: GraduationCap, title: text.studentPrice, desc: '49 MAD / mois dès la formule Étudiant Plus' },
+            { icon: Sparkles, title: 'IA intégrée', desc: 'Quiz IA, flashcards IA depuis PDF et assistant DocBuddy' },
+            { icon: ShieldCheck, title: text.support, desc: 'Une plateforme pensée pour les révisions médicales' },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.title} className="rounded-3xl bg-white p-6 shadow-lg">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600">{item.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="mx-auto mt-16 max-w-4xl">
+        <h2 className="text-center text-3xl font-bold text-gray-900">{text.faqTitle}</h2>
+
+        <div className="mt-8 space-y-4">
+          {text.faq.map((item) => (
+            <details key={item.q} className="rounded-2xl bg-white p-5 shadow-md">
+              <summary className="cursor-pointer font-bold text-gray-900">{item.q}</summary>
+              <p className="mt-3 leading-relaxed text-gray-600">{item.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto mt-14 max-w-4xl text-center">
+        <div className="rounded-3xl bg-gray-900 p-8 text-white shadow-xl">
+          <div className="mb-4 flex justify-center">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star key={star} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+            ))}
+          </div>
+
+          <p className="text-lg font-medium">
+            {language === 'fr'
+              ? 'Une seule plateforme pour centraliser vos cours, vos quiz, vos flashcards et votre progression.'
+              : 'منصة واحدة لتجميع الدروس والاختبارات والبطاقات التعليمية وتتبع التقدم.'}
+          </p>
+
+          <div className="mt-6 text-sm text-gray-300">
+            {text.termsStart}{' '}
+            <NavLink to="/terms" className="font-semibold text-white underline">
+              {text.terms}
+            </NavLink>{' '}
+            {language === 'fr' ? 'et notre' : 'و'}{' '}
+            <NavLink to="/privacy" className="font-semibold text-white underline">
+              {text.privacy}
             </NavLink>
             .
           </div>
-
-          {success && (
-            <div className="bg-green-50 border border-green-200 text-green-600 px-6 py-4 rounded-lg mb-6 transition-opacity duration-500">
-              ✅ {t.success}
-            </div>
-          )}
-
-          <NavLink to="/login" className="inline-flex items-center text-blue-600 hover:text-blue-800 underline font-medium">
-            ← {t.back}
-          </NavLink>
         </div>
-      </div>
-    </div>
+
+        <NavLink
+          to="/login"
+          className="mt-8 inline-flex items-center font-semibold text-blue-700 hover:text-blue-900"
+        >
+          {isRTL ? text.backLogin : `← ${text.backLogin}`}
+        </NavLink>
+      </section>
+    </main>
   );
 };
 

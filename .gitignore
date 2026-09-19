@@ -22,6 +22,7 @@ chatbot-server/.env
 
 # Firebase secrets
 backend/src/config/serviceAccountKey.json
+backend/serviceAccountKey.json
 serviceAccountKey.json
 **/serviceAccountKey.json
 .firebase/
@@ -56,6 +57,7 @@ lerna-debug.log*
 # Testing
 coverage/
 .nyc_output/
+Docs de tests/
 
 # Editor directories and files
 .vscode/
@@ -92,3 +94,5 @@ desktop.ini
 *.seed
 *.pid
 *.pid.lock
+repo_tree.txt
+frontend/public/logo-horizontal1.png

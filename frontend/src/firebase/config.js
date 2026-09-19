@@ -1,18 +1,16 @@
-// firebase/config.js
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { 
-  getFirestore, 
-  connectFirestoreEmulator, 
-  enableNetwork, 
+import {
+  getFirestore,
+  connectFirestoreEmulator,
+  enableNetwork,
   disableNetwork,
   enableIndexedDbPersistence,
-  CACHE_SIZE_UNLIMITED
+  CACHE_SIZE_UNLIMITED,
 } from 'firebase/firestore';
 import { getStorage, connectStorageEmulator } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
-// Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -23,84 +21,56 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
 };
 
-const missingFirebaseConfig = Object.entries(firebaseConfig)
-  .filter(([key, value]) => key !== 'measurementId' && !value)
-  .map(([key]) => key);
+const requiredConfigKeys = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'storageBucket',
+  'messagingSenderId',
+  'appId',
+];
 
-if (missingFirebaseConfig.length > 0) {
-  throw new Error(`Missing Firebase configuration: ${missingFirebaseConfig.join(', ')}`);
+const missingConfig = requiredConfigKeys.filter((key) => !firebaseConfig[key]);
+
+if (missingConfig.length > 0) {
+  throw new Error(`Missing Firebase configuration: ${missingConfig.join(', ')}`);
 }
 
-// Initialize Firebase app only if it doesn't exist
-let app;
-try {
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  console.log('Firebase app initialized successfully');
-} catch (error) {
-  console.error('Firebase initialization error:', error);
-  throw new Error('Failed to initialize Firebase');
-}
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize services with error handling
-let auth, db, storage, analytics;
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
 
-try {
-  auth = getAuth(app);
-  console.log('Firebase Auth initialized');
-} catch (error) {
-  console.error('Firebase Auth initialization error:', error);
-  throw error;
-}
+let analytics = null;
 
-try {
-  db = getFirestore(app);
-  console.log('Firestore initialized');
-  
-  // Enable offline persistence with multi-tab synchronization
-  enableIndexedDbPersistence(db, {
-    experimentalTabSynchronization: true,
-    cacheSizeBytes: CACHE_SIZE_UNLIMITED
-  }).catch((error) => {
-    console.warn('Firestore persistence error:', error);
-    if (error.code === 'failed-precondition') {
-      console.warn('Persistence failed: Multiple tabs open or incompatible browser state. Using memory cache.');
-    } else if (error.code === 'unimplemented') {
-      console.warn('Persistence not available: Browser does not support IndexedDB. Using memory cache.');
-    }
-  });
-  
-} catch (error) {
-  console.error('Firestore initialization error:', error);
-  throw error;
-}
-
-try {
-  storage = getStorage(app);
-  console.log('Firebase Storage initialized');
-} catch (error) {
-  console.error('Firebase Storage initialization error:', error);
-  throw error;
-}
-
-// Initialize Analytics only if supported
-try {
-  isSupported().then((supported) => {
-    if (supported) {
+isSupported()
+  .then((supported) => {
+    if (supported && firebaseConfig.measurementId) {
       analytics = getAnalytics(app);
       console.log('Firebase Analytics initialized');
-    } else {
-      console.log('Firebase Analytics not supported in this environment');
     }
+  })
+  .catch((error) => {
+    console.warn('Firebase Analytics initialization skipped:', error);
   });
-} catch (error) {
-  console.warn('Firebase Analytics initialization error:', error);
-}
 
-// Connection management utilities
+enableIndexedDbPersistence(db, {
+  experimentalTabSynchronization: true,
+  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+}).catch((error) => {
+  if (error.code === 'failed-precondition') {
+    console.warn('Firestore persistence unavailable: multiple tabs are open.');
+  } else if (error.code === 'unimplemented') {
+    console.warn('Firestore persistence unavailable in this browser.');
+  } else {
+    console.warn('Firestore persistence error:', error);
+  }
+});
+
 export const enableFirestoreNetwork = async () => {
   try {
     await enableNetwork(db);
-    console.log('Firestore network enabled');
     return true;
   } catch (error) {
     console.error('Failed to enable Firestore network:', error);
@@ -111,7 +81,6 @@ export const enableFirestoreNetwork = async () => {
 export const disableFirestoreNetwork = async () => {
   try {
     await disableNetwork(db);
-    console.log('Firestore network disabled');
     return true;
   } catch (error) {
     console.error('Failed to disable Firestore network:', error);
@@ -119,65 +88,54 @@ export const disableFirestoreNetwork = async () => {
   }
 };
 
-// Enhanced retry utility with connection management
 export const retryFirestoreOperation = async (operation, maxRetries = 3, baseDelay = 1000) => {
   let lastError;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
     try {
       await enableFirestoreNetwork();
-      const result = await operation();
-      console.log(`Firestore operation succeeded on attempt ${attempt}`);
-      return result;
+      return await operation();
     } catch (error) {
       lastError = error;
-      console.warn(`Firestore operation failed (attempt ${attempt}/${maxRetries}):`, error);
-      
-      const isNetworkError = error.code === 'unavailable' || 
-                           error.code === 'deadline-exceeded' || 
-                           error.message.includes('WebChannel') ||
-                           error.message.includes('400');
-      
+
+      const isNetworkError =
+        error.code === 'unavailable' ||
+        error.code === 'deadline-exceeded' ||
+        error.message?.includes('WebChannel') ||
+        error.message?.includes('400');
+
       if (attempt < maxRetries) {
         if (isNetworkError) {
-          console.log('Network error detected, attempting to reset connection');
           try {
             await disableFirestoreNetwork();
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise((resolve) => setTimeout(resolve, 500));
             await enableFirestoreNetwork();
           } catch (networkError) {
-            console.warn('Network reset failed:', networkError);
+            console.warn('Firestore network reset failed:', networkError);
           }
         }
-        
-        const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 1000;
-        console.log(`Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+
+        const delay = baseDelay * 2 ** (attempt - 1) + Math.random() * 1000;
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
-  
-  console.error(`Firestore operation failed after ${maxRetries} attempts:`, lastError);
+
   throw lastError;
 };
 
-// Connection status monitoring
 export const createConnectionMonitor = (onStatusChange) => {
-  let isOnline = navigator.onLine;
   let firestoreConnected = true;
-  
+
   const updateStatus = () => {
-    const currentStatus = {
+    onStatusChange?.({
       browserOnline: navigator.onLine,
       firestoreConnected,
-      overall: navigator.onLine && firestoreConnected
-    };
-    onStatusChange?.(currentStatus);
+      overall: navigator.onLine && firestoreConnected,
+    });
   };
 
   const handleOnline = async () => {
-    console.log('Browser came online');
-    isOnline = true;
     try {
       await enableFirestoreNetwork();
       firestoreConnected = true;
@@ -189,8 +147,6 @@ export const createConnectionMonitor = (onStatusChange) => {
   };
 
   const handleOffline = async () => {
-    console.log('Browser went offline');
-    isOnline = false;
     try {
       await disableFirestoreNetwork();
     } catch (error) {
@@ -201,8 +157,8 @@ export const createConnectionMonitor = (onStatusChange) => {
   };
 
   const testConnection = async () => {
-    if (!isOnline) return;
-    
+    if (!navigator.onLine) return;
+
     try {
       await enableFirestoreNetwork();
       firestoreConnected = true;
@@ -215,10 +171,10 @@ export const createConnectionMonitor = (onStatusChange) => {
 
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
-  
+
   const connectionInterval = setInterval(testConnection, 30000);
   updateStatus();
-  
+
   return () => {
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
@@ -226,32 +182,30 @@ export const createConnectionMonitor = (onStatusChange) => {
   };
 };
 
-// Enhanced error handling for common Firestore errors
 export const handleFirestoreError = (error, context = '') => {
   console.error(`Firestore error in ${context}:`, error);
-  
+
   switch (error.code) {
     case 'permission-denied':
-      return 'Vous n\'avez pas les permissions nécessaires pour cette action.';
+      return "Vous n'avez pas les permissions necessaires pour cette action.";
     case 'not-found':
-      return 'Les données demandées n\'ont pas été trouvées.';
+      return "Les donnees demandees n'ont pas ete trouvees.";
     case 'unavailable':
-      return 'Le service est temporairement indisponible. Veuillez réessayer.';
+      return 'Le service est temporairement indisponible. Veuillez reessayer.';
     case 'deadline-exceeded':
-      return 'La requête a pris trop de temps. Vérifiez votre connexion.';
+      return 'La requete a pris trop de temps. Verifiez votre connexion.';
     case 'resource-exhausted':
-      return 'Limite de quota atteinte. Veuillez réessayer plus tard.';
+      return 'Limite de quota atteinte. Veuillez reessayer plus tard.';
     case 'unauthenticated':
-      return 'Vous devez être connecté pour effectuer cette action.';
+      return 'Vous devez etre connecte pour effectuer cette action.';
     default:
       if (error.message?.includes('WebChannel') || error.message?.includes('400')) {
-        return 'Problème de connexion détecté. Vérification en cours...';
+        return 'Probleme de connexion detecte. Verification en cours...';
       }
-      return 'Une erreur inattendue s\'est produite.';
+      return "Une erreur inattendue s'est produite.";
   }
 };
 
-// Development emulators (uncomment for local development)
 if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_EMULATORS === 'true') {
   try {
     connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
@@ -259,9 +213,9 @@ if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_EMULATOR
     connectStorageEmulator(storage, 'localhost', 9199);
     console.log('Connected to Firebase emulators');
   } catch (error) {
-    console.warn('Failed to connect to emulators:', error);
+    console.warn('Failed to connect to Firebase emulators:', error);
   }
 }
 
-export { auth, db, storage, analytics };
+export { analytics };
 export default app;

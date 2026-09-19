@@ -1,114 +1,119 @@
-Deployment Instructions - MedPlatform Maroc
-Backend Deployment (Vercel)
+# Deployment - MedPlatform
 
-Prepare the backend:
+This project deploys as one Railway service:
 
-Ensure server.js is configured to use process.env.PORT.
-Update package.json with a start script:"start": "node server.js"
+- `backend/server.js` serves the API under `/api`.
+- The Docker build compiles the React app into `frontend/build`.
+- The backend serves the compiled React app from the same public Railway URL.
 
+## 1. Security Before Push
 
+Keep these files out of Git and Docker images:
 
+- `.env`, `.env.*`
+- `backend/.env`, `frontend/.env`, `chatbot-server/.env`
+- `*.bak`, `*.bak*`
+- `serviceAccountKey.json`
+- `frontend/build`, `backend/build`, `dist`
+- `repo_tree.txt`, `Docs de tests/`
 
-Push to GitHub:
+Important: older Git history contained Firebase and env backup files. Treat every key that was ever committed as exposed. Rotate the Firebase service account key, Groq key, xAI/OpenAI keys, and any other provider token before production use.
 
-Create a GitHub repository for the backend.
-Push the backend/ directory:git init
-git add .
-git commit -m "Initial backend commit"
-git remote add origin <github-repo-url>
-git push -u origin main
+## 2. Verify Locally
 
+Run:
 
+```bash
+node --check backend/server.js
+npm --prefix frontend run build
+git status --ignored --short
+```
 
+Confirm real environment files show as ignored and are not staged.
 
-Deploy to Vercel:
+## 3. Push To GitHub
 
-Log in to Vercel.
-Import the GitHub repository.
-Configure environment variables in Vercel dashboard (same as .env):
-PORT, FRONTEND_URL, EMAIL_USER, EMAIL_PASS, OPENAI_API_KEY, FIREBASE_SERVICE_ACCOUNT, FIREBASE_STORAGE_BUCKET.
+The repository should remain private.
 
+```bash
+git add Dockerfile .dockerignore .gitignore docs/DEPLOYMENT.md docs/SETUP.md backend frontend
+git status --short
+git diff --cached
+git commit -m "Prepare Railway deployment"
+git push origin main
+```
 
-Set the root directory to backend/.
-Deploy the project.
+Do not stage local `.env` files, backup env files, service-account JSON files, `repo_tree.txt`, or local test documents.
 
+## 4. Deploy On Railway
 
-Verify deployment:
+1. Create a new Railway project from the private GitHub repository.
+2. Deploy from the repository root.
+3. Let Railway use the root `Dockerfile`.
+4. Add the environment variables below.
+5. Deploy and open the generated Railway URL.
 
-Access the deployed API at the Vercel-provided URL (e.g., https://your-backend.vercel.app/api).
-Test endpoints using Postman or cURL.
+Railway injects `PORT`; do not hardcode it.
 
+## 5. Railway Variables
 
+Runtime variables:
 
-Frontend Deployment (Vercel)
+```bash
+NODE_ENV=production
+GROQ_API_KEY=
+GROQ_CHAT_MODEL=openai/gpt-oss-20b
+XAI_API_KEY=
+XAI_API_KEY_2=
+FIREBASE_SERVICE_ACCOUNT_BASE64=
+FIREBASE_STORAGE_BUCKET=
+FIREBASE_DATABASE_URL=
+FRONTEND_URL=https://your-app.up.railway.app
+CORS_ORIGIN=https://your-app.up.railway.app
+```
 
-Prepare the frontend:
+Prefer `FIREBASE_SERVICE_ACCOUNT_BASE64` for Railway. Encode the full Firebase service-account JSON as base64 and paste the result as one line.
 
-Ensure frontend/package.json has a build script:"build": "react-scripts build"
+React build-time variables:
 
+```bash
+REACT_APP_FIREBASE_API_KEY=
+REACT_APP_FIREBASE_AUTH_DOMAIN=
+REACT_APP_FIREBASE_PROJECT_ID=
+REACT_APP_FIREBASE_STORAGE_BUCKET=
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID=
+REACT_APP_FIREBASE_APP_ID=
+REACT_APP_FIREBASE_MEASUREMENT_ID=
+```
 
-Update API endpoints in frontend/src/services/api.js to use the backend's deployed URL.
+For the one-service Railway deployment, do not set `REACT_APP_BACKEND_URL`. The frontend should call same-origin `/api`.
 
+## 6. Firebase Configuration
 
-Push to GitHub:
+After Railway provides the public URL:
 
-Create a separate GitHub repository for the frontend.
-Push the frontend/ directory:cd frontend
-git init
-git add .
-git commit -m "Initial frontend commit"
-git remote add origin <github-repo-url>
-git push -u origin main
+1. Add the Railway domain to Firebase Authentication authorized domains.
+2. Confirm Firestore and Storage production rules are applied.
+3. Confirm the Firebase service account used by Railway has the required permissions.
 
+## 7. Production Checks
 
+After deployment:
 
+```bash
+curl https://your-app.up.railway.app/health
+curl https://your-app.up.railway.app/api/health
+```
 
-Deploy to Vercel:
+Then test:
 
-Import the frontend repository in Vercel.
-Configure environment variables (REACT_APP_FIREBASE_*).
-Set the root directory to frontend/.
-Deploy the project.
+- Home page and route refreshes.
+- Register, login, logout, and protected pages.
+- Dashboard, courses, videos, flashcards, quiz flows.
+- Firebase reads and writes.
+- DocBuddy chatbot through `/api/ai/chat`.
+- Railway logs for Firebase parsing, CORS, CSP, and AI provider errors.
 
+## 8. Rollback
 
-Verify deployment:
-
-Access the frontend at the Vercel-provided URL (e.g., https://your-frontend.vercel.app).
-Test login, content access, and AI features.
-
-
-
-Firebase Configuration
-
-Ensure Firestore and Storage rules are applied (see SETUP.md).
-Update FRONTEND_URL in backend .env to the deployed frontend URL.
-Monitor Firebase usage in the Firebase Console to avoid exceeding quotas.
-
-CI/CD
-
-Vercel automatically deploys on git push to the main branch.
-Set up GitHub Actions for linting/tests if needed:name: CI
-on: [push]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with: { node-version: '18' }
-      - run: npm install
-      - run: npm test
-
-
-
-Scaling Considerations
-
-Firebase: Upgrade to Blaze plan for higher quotas if needed.
-Vercel: Consider Pro plan for increased bandwidth or custom domains.
-Monitoring: Use Firebase Analytics and Vercel Logs for debugging.
-
-Rollback
-
-Revert to a previous deployment in Vercel dashboard if issues arise.
-Maintain backups of Firestore data using Firebase Export.
-
+Use Railway deployment history to roll back to the previous successful deployment.

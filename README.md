@@ -1,90 +1,62 @@
-MedPlatform Maroc
-MedPlatform Maroc est une plateforme éducative conçue pour les étudiants en médecine au Maroc, offrant des cours interactifs, des vidéos, des quiz, des flashcards, et des outils d'intelligence artificielle (chatbot, tuteur, recommandations personnalisées). La plateforme prend en charge le français et l'arabe pour une expérience utilisateur accessible.
-Fonctionnalités principales
+# MedPlatform
 
-Authentification : Inscription/connexion sécurisée via Firebase Authentication.
-Gestion des utilisateurs : Rôles (étudiant, enseignant, admin) avec gestion des profils.
-Contenu éducatif : Vidéos, quiz, et flashcards stockés dans Firebase Firestore et Storage.
-Outils IA : Chatbot et tuteur alimentés par une API externe (ex. OpenAI) pour des réponses et explications médicales.
-Multilinguisme : Interface et messages en français et arabe.
-Tableau de bord : Suivi des progrès et recommandations personnalisées.
-Administration : Gestion des utilisateurs et du contenu pour les admins.
+MedPlatform is an educational platform for medical students. It includes a React frontend, an Express/Firebase backend, and AI-assisted study features such as DocBuddy.
 
-Structure du projet
+## Project Structure
+
+```text
 my-med-platform/
-├── frontend/              # Application React
-├── backend/               # API Node.js/Express
-├── database/              # Schémas et données initiales Firestore
-├── docs/                  # Documentation (API, Setup, Deployment, User Guide)
-├── .gitignore             # Fichiers/dossiers ignorés par Git
-├── README.md              # Introduction au projet
-└── package.json           # Dépendances et scripts globaux
+  backend/          Express API and Firebase Admin integration
+  frontend/         React application
+  database/         Seed data and database helpers
+  docs/             Setup, deployment, and API documentation
+  Dockerfile        Single-service Railway deployment
+```
 
-Technologies
+## Local Development
 
-Frontend : React, Tailwind CSS, Firebase SDK
-Backend : Node.js, Express, Firebase Admin SDK
-Base de données : Firebase Firestore
-Stockage : Firebase Storage
-IA : API OpenAI (ou alternative)
-Autres : Nodemailer (emails), Multer (uploads), Joi (validation)
+Install backend dependencies:
 
-Installation
-
-Cloner le dépôt :
-git clone <repository-url>
-cd my-med-platform
-
-
-Installer les dépendances globales :
+```bash
+cd backend
 npm install
+npm run dev
+```
 
+Install frontend dependencies in another terminal:
 
-Configurer le frontend :
+```bash
+cd frontend
+npm install
+npm start
+```
 
-Suivez frontend/README.md ou docs/SETUP.md pour les instructions.
+The frontend runs at `http://localhost:3000` and the backend runs at `http://localhost:5000`.
 
+## Environment Files
 
-Configurer le backend :
+Use local `.env` files only on your machine:
 
-Suivez backend/README.md ou docs/SETUP.md pour les instructions.
+- `backend/.env`
+- `frontend/.env`
 
+Never commit real `.env` files, Firebase service-account JSON, backup env files, or API keys. Use the `.env.example` files as templates.
 
-Configurer Firebase :
+## Deployment
 
-Créez un projet Firebase et configurez Firestore, Storage, et Authentication.
-Appliquez les règles Firestore/Storage décrites dans docs/SETUP.md.
+Production is designed as one Railway service from the repository root:
 
+- Railway builds with the root `Dockerfile`.
+- The Docker build compiles `frontend/build`.
+- `backend/server.js` serves both `/api` and the compiled frontend.
 
-Initialiser la base de données :
-node database/seed.js
+See `docs/DEPLOYMENT.md` for the complete release checklist.
 
+## Verification
 
+```bash
+node --check backend/server.js
+npm --prefix frontend run build
+```
 
-Déploiement
-
-Frontend et backend peuvent être déployés sur Vercel.
-Suivez docs/DEPLOYMENT.md pour les instructions détaillées.
-
-Documentation
-
-API : docs/API.md (détails des endpoints)
-Installation : docs/SETUP.md
-Déploiement : docs/DEPLOYMENT.md
-Guide utilisateur : docs/USER_GUIDE.md
-
-Contribution
-
-Forkez le dépôt.
-Créez une branche pour votre fonctionnalité (git checkout -b feature/nom-fonctionnalite).
-Commitez vos changements (git commit -m "Ajout de fonctionnalité").
-Poussez votre branche (git push origin feature/nom-fonctionnalite).
-Ouvrez une Pull Request.
-
-Support
-
-Email : support@medplatform.ma
-Issues : Créez un ticket sur GitHub.
-
-Licence
-ISC © MedPlatform Team
+After deployment, verify `/health`, `/api/health`, authentication, Firebase content, and DocBuddy chat.

@@ -1,131 +1,97 @@
-Setup Instructions - MedPlatform Maroc
-Prerequisites
+# Setup - MedPlatform
 
-Node.js (v18 or later)
-npm (v9 or later)
-Firebase project with Firestore, Storage, and Authentication enabled
-Gmail account for email notifications
-OpenAI API key for AI features
-Git
+## Prerequisites
 
-Backend Setup
+- Node.js 20 or later
+- npm 8 or later
+- Firebase project with Authentication, Firestore, and Storage enabled
+- Groq API key for DocBuddy
+- xAI key if the authenticated xAI routes are used
+- Git
 
-Clone the repository:
-git clone <repository-url>
+## Backend
+
+```bash
 cd backend
-
-
-Install dependencies:
 npm install
+```
 
+Create `backend/.env`:
 
-Configure environment variables:Create a .env file in backend/ with the following:
+```bash
+NODE_ENV=development
 PORT=5000
 FRONTEND_URL=http://localhost:3000
-EMAIL_USER=your-email@gmail.com
-EMAIL_PASS=your-app-specific-password
-OPENAI_API_KEY=your-openai-api-key
-FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"your-project-id",...}
-FIREBASE_STORAGE_BUCKET=your-storage-bucket
+CORS_ORIGIN=http://localhost:3000
 
+FIREBASE_STORAGE_BUCKET=
+FIREBASE_DATABASE_URL=
+FIREBASE_SERVICE_ACCOUNT=
+FIREBASE_SERVICE_ACCOUNT_BASE64=
 
-Obtain EMAIL_PASS from Google (App Passwords).
-Get FIREBASE_SERVICE_ACCOUNT from Firebase Console > Project Settings > Service Accounts.
-Get OPENAI_API_KEY from OpenAI dashboard.
+GROQ_API_KEY=
+GROQ_CHAT_MODEL=openai/gpt-oss-20b
+XAI_API_KEY=
+XAI_API_KEY_2=
+```
 
+Use either `FIREBASE_SERVICE_ACCOUNT` with the full JSON value or `FIREBASE_SERVICE_ACCOUNT_BASE64` with the base64-encoded JSON. Keep provider keys server-side only; never add Groq, xAI, OpenAI, Firebase private keys, or service-account JSON to `frontend/.env`.
 
-Run the server:
+Run:
 
-Development (with auto-reload):npm run dev
+```bash
+npm run dev
+```
 
+## Frontend
 
-Production:npm start
-
-
-
-
-
-Frontend Setup
-
-Navigate to frontend directory:
-cd ../frontend
-
-
-Install dependencies:
+```bash
+cd frontend
 npm install
+```
 
+Create `frontend/.env`:
 
-Configure environment variables:Create a .env file in frontend/ with:
-REACT_APP_FIREBASE_API_KEY=your-api-key
-REACT_APP_FIREBASE_AUTH_DOMAIN=your-auth-domain
-REACT_APP_FIREBASE_PROJECT_ID=your-project-id
-REACT_APP_FIREBASE_STORAGE_BUCKET=your-storage-bucket
-REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
-REACT_APP_FIREBASE_APP_ID=your-app-id
+```bash
+REACT_APP_FIREBASE_API_KEY=
+REACT_APP_FIREBASE_AUTH_DOMAIN=
+REACT_APP_FIREBASE_PROJECT_ID=
+REACT_APP_FIREBASE_STORAGE_BUCKET=
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID=
+REACT_APP_FIREBASE_APP_ID=
+REACT_APP_FIREBASE_MEASUREMENT_ID=
+REACT_APP_BACKEND_URL=http://localhost:5000
+```
 
+Run:
 
-Run the frontend:
+```bash
 npm start
+```
 
-Access at http://localhost:3000.
+The frontend runs at `http://localhost:3000` and calls the backend at `http://localhost:5000/api`.
 
+## Production Notes
 
-Firebase Configuration
+- Deploy the app as one Railway service from the repository root.
+- Railway should use the root `Dockerfile`.
+- Do not set `REACT_APP_BACKEND_URL` in Railway for the one-service deployment; the production frontend uses same-origin `/api`.
+- Add the generated Railway domain to Firebase Authentication authorized domains.
+- See `docs/DEPLOYMENT.md` for the full production checklist.
 
-Create a Firebase project at console.firebase.google.com.
-Enable Firestore, Storage, and Authentication (Email/Password provider).
-Set Firestore rules:rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.token.role == 'admin';
-      allow read: if request.auth.uid == userId;
-    }
-    match /videos/{videoId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.role in ['teacher', 'admin'];
-    }
-    match /quizzes/{quizId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.role in ['teacher', 'admin'];
-    }
-    match /flashcards/{flashcardId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.role in ['teacher', 'admin'];
-    }
-    match /progress/{userId} {
-      allow read, write: if request.auth.uid == userId;
-    }
-  }
-}
+## Firebase
 
+1. Create a Firebase project.
+2. Enable Authentication with Email/Password.
+3. Enable Firestore and Storage.
+4. Apply production-ready Firestore and Storage rules before public launch.
+5. Create a Firebase service account for the backend and rotate it if an older key was ever committed.
 
-Set Storage rules:service firebase.storage {
-  match /b/{bucket}/o {
-    match /videos/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.role in ['teacher', 'admin'];
-    }
-  }
-}
+## Verification
 
+```bash
+node --check backend/server.js
+npm --prefix frontend run build
+```
 
-
-Database Seeding
-
-Seed initial data:node database/seed.js
-
-This populates Firestore with data from database/seeds/sampleUsers.json and sampleContent.json.
-
-Testing
-
-Run backend tests:npm test
-
-
-
-Troubleshooting
-
-Firebase errors: Ensure FIREBASE_SERVICE_ACCOUNT is correctly formatted in .env.
-Email errors: Verify EMAIL_USER and EMAIL_PASS are correct.
-CORS issues: Check FRONTEND_URL matches the frontend's URL.
-
+Then test login, dashboard loading, Firebase reads/writes, protected pages, and DocBuddy chat.

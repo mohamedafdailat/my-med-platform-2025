@@ -1,50 +1,210 @@
+// C:\my-med-platform\frontend\src\App.js
+
 import React, { lazy, Suspense, useEffect, Component, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
 import { AuthProvider } from './contexts/AuthContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
-import { PaymentProvider, PaymentErrorDisplay, PaymentSuccessDisplay } from './contexts/PaymentContext';
+import {
+  PaymentProvider,
+  PaymentErrorDisplay,
+  PaymentSuccessDisplay,
+} from './contexts/PaymentContext';
 import { ToastProvider } from './contexts/ToastContext';
+
 import Header from './components/Header';
-import Footer from './common/Footer';
-import Contact from './pages/contact';
-import PrivacyPolicy from './components/PrivacyPolicy';
+import Footer from './components/Footer';
 import Chatbot from './components/Chatbot';
 import ProtectedRoute from './components/ProtectedRoute';
+
+import PrivacyPolicy from './components/PrivacyPolicy';
+import Contact from './pages/contact';
+
 import './App.css';
 
-// Lazy load components avec gestion d'erreurs améliorée
-const Home = lazy(() => import('./pages/Home').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la page d'accueil" /> })));
-const Videos = lazy(() => import('./pages/Videos').catch(() => ({ default: () => <ErrorPage message="Impossible de charger les vidéos" /> })));
-const VideoPlayer = lazy(() => import('./pages/VideoPlayer').catch(() => ({ default: () => <ErrorPage message="Impossible de charger le lecteur vidéo" /> })));
-const Quizzes = lazy(() => import('./pages/Quizzes').catch(() => ({ default: () => <ErrorPage message="Impossible de charger les quiz" /> })));
-const QuizPlayer = lazy(() => import('./pages/QuizPlayer').catch(() => ({ default: () => <ErrorPage message="Impossible de charger le quiz" /> })));
-const QuizGenerator = lazy(() => import('./pages/QuizzGenerator').catch(() => ({ default: () => <ErrorPage message="Impossible de charger le générateur de quiz" /> })));
-const Courses = lazy(() => import('./pages/Courses').catch(() => ({ default: () => <ErrorPage message="Impossible de charger les cours" /> })));
-const CoursePlayer = lazy(() => import('./pages/CoursePlayer').catch(() => ({ default: () => <ErrorPage message="Impossible de charger le cours" /> })));
-const Flashcards = lazy(() => import('./pages/Flashcards').catch(() => ({ default: () => <ErrorPage message="Impossible de charger les flashcards" /> })));
-const Profile = lazy(() => import('./pages/Profile').catch(() => ({ default: () => <ErrorPage message="Impossible de charger le profil" /> })));
-const Settings = lazy(() => import('./pages/Settings').catch(() => ({ default: () => <ErrorPage message="Impossible de charger les paramètres" /> })));
-const AdminDashboard = lazy(() => import('./pages/Admin').catch(() => ({ default: () => <ErrorPage message="Impossible de charger le tableau de bord admin" /> })));
-const StudentDashboard = lazy(() => import('./pages/StudentDashboard').catch(() => ({ default: () => <ErrorPage message="Impossible de charger le tableau de bord étudiant" /> })));
-const Subscription = lazy(() => import('./pages/Subscription').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la page d'abonnement" /> })));
-const Login = lazy(() => import('./auth/Login').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la page de connexion" /> })));
-const Register = lazy(() => import('./auth/Register').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la page d'inscription" /> })));
-const ForgotPassword = lazy(() => import('./auth/ForgotPassword').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la récupération de mot de passe" /> })));
-const UserProfile = lazy(() => import('./pages/UserProfile').catch(() => ({ default: () => <ErrorPage message="Impossible de charger le profil utilisateur" /> })));
-const Terms = lazy(() => import('./pages/Terms').catch(() => ({ default: () => <ErrorPage message="Impossible de charger les conditions" /> })));
-const Payment = lazy(() => import('./pages/Payment').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la page de paiement" /> })));
-const PaymentError = lazy(() => import('./pages/PaymentError').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la page d'erreur de paiement" /> })));
-const AddVideoPage = lazy(() => import('./pages/AddVideoPage').catch(() => ({ default: () => <ErrorPage message="Impossible de charger l'ajout de vidéo" /> })));
-const AdminUsers = lazy(() => import('./pages/AdminUsers').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la gestion des utilisateurs" /> })));
-const AdminVideos = lazy(() => import('./pages/AdminVideos').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la gestion des vidéos" /> })));
-const AdminCourses = lazy(() => import('./pages/AdminCourses').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la gestion des cours" /> })));
-const AddFlashcards = lazy(() => import('./pages/AddFlashcards').catch(() => ({ default: () => <ErrorPage message="Impossible de charger l'ajout de flashcards" /> })));
-const AdminQCM = lazy(() => import('./pages/AdminQCM').catch(() => ({ default: () => <ErrorPage message="Impossible de charger la gestion des QCMs" /> })));
+const ErrorPage = ({ message = 'Une erreur est survenue.', language = 'fr' }) => (
+  <div className="app-error-screen">
+    <div className="app-error-card">
+      <div className="app-error-icon">😕</div>
+
+      <h1>{language === 'fr' ? message : 'حدث خطأ.'}</h1>
+
+      <div className="app-error-actions">
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="btn-primary"
+        >
+          {language === 'fr' ? 'Actualiser' : 'تحديث'}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = '/';
+          }}
+          className="btn-secondary"
+        >
+          {language === 'fr' ? "Retour à l'accueil" : 'العودة إلى الصفحة الرئيسية'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const lazyPage = (importer, fallbackMessage) =>
+  lazy(() =>
+    importer().catch((error) => {
+      console.error(`Lazy loading failed: ${fallbackMessage}`, error);
+
+      return {
+        default: () => <ErrorPage message={fallbackMessage} />,
+      };
+    })
+  );
+
+const Home = lazyPage(
+  () => import('./pages/Home'),
+  "Impossible de charger la page d'accueil"
+);
+
+const Videos = lazyPage(
+  () => import('./pages/Videos'),
+  'Impossible de charger les vidéos'
+);
+
+const VideoPlayer = lazyPage(
+  () => import('./pages/VideoPlayer'),
+  'Impossible de charger le lecteur vidéo'
+);
+
+const Quizzes = lazyPage(
+  () => import('./pages/Quizzes'),
+  'Impossible de charger les quiz'
+);
+
+const QuizPlayer = lazyPage(
+  () => import('./pages/QuizPlayer'),
+  'Impossible de charger le quiz'
+);
+
+const QuizGenerator = lazyPage(
+  () => import('./pages/QuizzGenerator'),
+  'Impossible de charger le générateur de quiz'
+);
+
+const Courses = lazyPage(
+  () => import('./pages/Courses'),
+  'Impossible de charger les cours'
+);
+
+const CoursePlayer = lazyPage(
+  () => import('./pages/CoursePlayer'),
+  'Impossible de charger le cours'
+);
+
+const Flashcards = lazyPage(
+  () => import('./pages/Flashcards'),
+  'Impossible de charger les flashcards'
+);
+
+const Profile = lazyPage(
+  () => import('./pages/Profile'),
+  'Impossible de charger le profil'
+);
+
+const Settings = lazyPage(
+  () => import('./pages/Settings'),
+  'Impossible de charger les paramètres'
+);
+
+const AdminDashboard = lazyPage(
+  () => import('./pages/Admin'),
+  'Impossible de charger le tableau de bord admin'
+);
+
+const StudentDashboard = lazyPage(
+  () => import('./pages/StudentDashboard'),
+  'Impossible de charger le tableau de bord étudiant'
+);
+
+const Subscription = lazyPage(
+  () => import('./pages/Subscription'),
+  "Impossible de charger la page d'abonnement"
+);
+
+const Login = lazyPage(
+  () => import('./auth/Login'),
+  'Impossible de charger la page de connexion'
+);
+
+const Register = lazyPage(
+  () => import('./auth/Register'),
+  "Impossible de charger la page d'inscription"
+);
+
+const ForgotPassword = lazyPage(
+  () => import('./auth/ForgotPassword'),
+  'Impossible de charger la récupération de mot de passe'
+);
+
+const UserProfile = lazyPage(
+  () => import('./pages/UserProfile'),
+  'Impossible de charger le profil utilisateur'
+);
+
+const Terms = lazyPage(
+  () => import('./pages/Terms'),
+  'Impossible de charger les conditions'
+);
+
+const Payment = lazyPage(
+  () => import('./pages/Payment'),
+  'Impossible de charger la page de paiement'
+);
+
+const PaymentError = lazyPage(
+  () => import('./pages/PaymentError'),
+  "Impossible de charger la page d'erreur de paiement"
+);
+
+const AddVideoPage = lazyPage(
+  () => import('./pages/AddVideoPage'),
+  "Impossible de charger l'ajout de vidéo"
+);
+
+const AdminUsers = lazyPage(
+  () => import('./pages/AdminUsers'),
+  'Impossible de charger la gestion des utilisateurs'
+);
+
+const AdminVideos = lazyPage(
+  () => import('./pages/AdminVideos'),
+  'Impossible de charger la gestion des vidéos'
+);
+
+const AdminCourses = lazyPage(
+  () => import('./pages/AdminCourses'),
+  'Impossible de charger la gestion des cours'
+);
+
+const AddFlashcards = lazyPage(
+  () => import('./pages/AddFlashcards'),
+  "Impossible de charger l'ajout de flashcards"
+);
+
+const AdminQCM = lazyPage(
+  () => import('./pages/AdminQCM'),
+  'Impossible de charger la gestion des QCM'
+);
 
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { error: null, errorInfo: null };
+    this.state = {
+      error: null,
+      errorInfo: null,
+    };
   }
 
   static getDerivedStateFromError(error) {
@@ -53,308 +213,298 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+
     this.setState({
       error,
-      errorInfo
+      errorInfo,
     });
   }
 
   handleRetry = () => {
-    this.setState({ error: null, errorInfo: null });
+    this.setState({
+      error: null,
+      errorInfo: null,
+    });
+
     window.location.reload();
   };
 
   render() {
-    if (this.state.error) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-          <div className="bg-white p-6 rounded-lg shadow-lg text-center max-w-md w-full mx-4">
-            <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h1 className="text-2xl text-red-600 mb-2 font-bold">Une erreur est survenue</h1>
-            <p className="text-gray-600 mb-4">{this.state.error.message}</p>
-            {process.env.NODE_ENV === 'development' && (
-              <details className="text-left mb-4 p-2 bg-gray-100 rounded text-xs">
-                <summary className="cursor-pointer">Détails techniques</summary>
-                <pre className="mt-2 whitespace-pre-wrap">{this.state.errorInfo?.componentStack}</pre>
-              </details>
-            )}
-            <div className="space-y-2">
-              <button
-                onClick={this.handleRetry}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                Actualiser la page
-              </button>
-              <button
-                onClick={() => window.location.href = '/'}
-                className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-              >
-                Retour à l'accueil
-              </button>
-            </div>
+    if (!this.state.error) {
+      return this.props.children;
+    }
+
+    return (
+      <div className="app-error-screen">
+        <div className="app-error-card">
+          <div className="app-error-icon">⚠️</div>
+
+          <h1>Une erreur est survenue</h1>
+
+          <p>{this.state.error.message}</p>
+
+          {process.env.NODE_ENV === 'development' && (
+            <details className="app-error-details">
+              <summary>Détails techniques</summary>
+              <pre>{this.state.errorInfo?.componentStack}</pre>
+            </details>
+          )}
+
+          <div className="app-error-actions">
+            <button type="button" onClick={this.handleRetry} className="btn-primary">
+              Actualiser la page
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = '/';
+              }}
+              className="btn-secondary"
+            >
+              Retour à l'accueil
+            </button>
           </div>
         </div>
-      );
-    }
-    return this.props.children;
+      </div>
+    );
   }
 }
 
-const ErrorPage = ({ message = 'Une erreur est survenue.', language = 'fr' }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-100">
-    <div className="bg-white p-6 rounded-lg shadow-lg text-center max-w-md w-full mx-4">
-      <div className="text-red-500 text-4xl mb-4">😕</div>
-      <h1 className="text-2xl text-red-500 mb-4">
-        {language === 'fr' ? message : 'حدث خطأ.'}
-      </h1>
-      <div className="space-y-2">
-        <button
-          onClick={() => window.location.reload()}
-          className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-        >
-          {language === 'fr' ? 'Actualiser' : 'تحديث'}
-        </button>
-        <button
-          onClick={() => window.location.href = '/'}
-          className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-        >
-          {language === 'fr' ? 'Retour à l\'accueil' : 'العودة إلى الصفحة الرئيسية'}
-        </button>
+const LoadingSpinner = () => {
+  const { language } = useLanguage();
+
+  return (
+    <div className="app-loading-screen">
+      <div className="app-loading-content">
+        <div
+          className="loading-spinner"
+          aria-label={language === 'fr' ? 'Chargement...' : 'جاري التحميل...'}
+        />
+        <p>{language === 'fr' ? 'Chargement...' : 'جاري التحميل...'}</p>
       </div>
     </div>
-  </div>
-);
-
-const LoadingSpinner = ({ language = 'fr' }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-100">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mx-auto mb-4"></div>
-      <p className="text-gray-600 text-lg">
-        {language === 'fr' ? 'Chargement...' : 'جاري التحميل...'}
-      </p>
-    </div>
-  </div>
-);
+  );
+};
 
 const PaymentNotifications = () => {
   const { language } = useLanguage();
-  
+
   return (
     <>
-      <PaymentErrorDisplay 
+      <PaymentErrorDisplay
         language={language}
         onRetry={() => window.location.reload()}
-        onNavigateToHelp={() => window.location.href = '/payment-error'}
+        onNavigateToHelp={() => {
+          window.location.href = '/payment-error';
+        }}
       />
-      <PaymentSuccessDisplay 
-        language={language}
-      />
+
+      <PaymentSuccessDisplay language={language} />
     </>
   );
 };
 
-// Composant HealthCheck pour Railway
-function HealthCheck() {
-  return <div>{JSON.stringify({status: "ok", timestamp: new Date().toISOString()})}</div>;
-}
+const HealthCheck = () => (
+  <pre className="app-health-check">
+    {JSON.stringify(
+      {
+        status: 'ok',
+        source: 'react',
+        timestamp: new Date().toISOString(),
+      },
+      null,
+      2
+    )}
+  </pre>
+);
+
+const publicRoutes = [
+  { path: '/', element: <Home /> },
+  { path: '/health', element: <HealthCheck /> },
+  { path: '/login', element: <Login /> },
+  { path: '/register', element: <Register /> },
+  { path: '/forgot-password', element: <ForgotPassword /> },
+  { path: '/subscription', element: <Subscription /> },
+  { path: '/payment-error', element: <PaymentError /> },
+  { path: '/terms', element: <Terms /> },
+  { path: '/privacy', element: <PrivacyPolicy /> },
+  { path: '/payment/:plan', element: <Payment /> },
+  { path: '/contact', element: <Contact /> },
+];
+
+const studentPaidRoutes = [
+  {
+    path: '/quizzes',
+    featureName: 'quizzes',
+    element: <Quizzes />,
+  },
+  {
+    path: '/quizzes/:id',
+    featureName: 'quizzes',
+    element: <QuizPlayer />,
+  },
+  {
+    path: '/quiz-generator',
+    featureName: 'quiz-generator',
+    element: <QuizGenerator />,
+  },
+  {
+    path: '/courses',
+    featureName: 'courses',
+    element: <Courses />,
+  },
+  {
+    path: '/courses/:id',
+    featureName: 'courses',
+    element: <CoursePlayer />,
+  },
+  {
+    path: '/flashcards',
+    featureName: 'flashcards',
+    element: <Flashcards />,
+  },
+  {
+    path: '/videos',
+    featureName: 'videos',
+    element: <Videos />,
+  },
+  {
+    path: '/videos/:id',
+    featureName: 'videos',
+    element: <VideoPlayer />,
+  },
+];
+
+const studentRoutes = [
+  {
+    path: '/profile',
+    element: <Profile />,
+  },
+  {
+    path: '/settings',
+    element: <Settings />,
+  },
+  {
+    path: '/users/:id',
+    element: <UserProfile />,
+  },
+  {
+    path: '/dashboard',
+    element: <StudentDashboard />,
+  },
+];
+
+const adminRoutes = [
+  {
+    path: '/Admin',
+    element: <AdminDashboard />,
+  },
+  {
+    path: '/admin/add-video',
+    element: <AddVideoPage />,
+  },
+  {
+    path: '/admin/users',
+    element: <AdminUsers />,
+  },
+  {
+    path: '/admin/videos',
+    element: <AdminVideos />,
+  },
+  {
+    path: '/admin/courses',
+    element: <AdminCourses />,
+  },
+  {
+    path: '/admin/flashcards',
+    element: <AddFlashcards />,
+  },
+  {
+    path: '/admin/qcms',
+    element: <AdminQCM />,
+  },
+];
 
 const AppRoutes = () => {
   const { language } = useLanguage();
 
-  const routes = useMemo(() => ({
-    public: [
-      { path: '/', element: <Home /> },
-      { path: '/health', element: <HealthCheck /> }, // Ajouté pour Railway
-      { path: '/login', element: <Login /> },
-      { path: '/register', element: <Register /> },
-      { path: '/forgot-password', element: <ForgotPassword /> },
-      { path: '/subscription', element: <Subscription /> },
-      { path: '/payment-error', element: <PaymentError /> },
-      { path: '/terms', element: <Terms /> },
-      { path: '/privacy', element: <PrivacyPolicy /> },
-      { path: '/payment/:plan', element: <Payment /> },
-      { path: '/contact', element: <Contact /> },
-    ],
-    studentPaid: [
-      { 
-        path: '/quizzes', 
-        element: (
-          <ProtectedRoute requiredRole="student" isPaidRequired={true} featureName="quizzes">
-            <Quizzes />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/quizzes/:id', 
-        element: (
-          <ProtectedRoute requiredRole="student" isPaidRequired={true} featureName="quizzes">
-            <QuizPlayer />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/quiz-generator', 
-        element: (
-          <ProtectedRoute requiredRole="student" isPaidRequired={true} featureName="quiz-generator">
-            <QuizGenerator />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/courses', 
-        element: (
-          <ProtectedRoute requiredRole="student" isPaidRequired={true} featureName="courses">
-            <Courses />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/courses/:id', 
-        element: (
-          <ProtectedRoute requiredRole="student" isPaidRequired={true} featureName="courses">
-            <CoursePlayer />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/flashcards', 
-        element: (
-          <ProtectedRoute requiredRole="student" isPaidRequired={true} featureName="flashcards">
-            <Flashcards />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/videos', 
-        element: (
-          <ProtectedRoute requiredRole="student" isPaidRequired={true} featureName="videos">
-            <Videos />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/videos/:id', 
-        element: (
-          <ProtectedRoute requiredRole="student" isPaidRequired={true} featureName="videos">
-            <VideoPlayer />
-          </ProtectedRoute>
-        ) 
-      },
-    ],
-    student: [
-      { 
-        path: '/profile', 
-        element: (
-          <ProtectedRoute requiredRole="student">
-            <Profile />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/settings', 
-        element: (
-          <ProtectedRoute requiredRole="student">
-            <Settings />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/users/:id', 
-        element: (
-          <ProtectedRoute requiredRole="student">
-            <UserProfile />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/dashboard', 
-        element: (
-          <ProtectedRoute requiredRole="student">
-            <StudentDashboard />
-          </ProtectedRoute>
-        ) 
-      },
-    ],
-    admin: [
-      { 
-        path: '/admin', 
-        element: (
-          <ProtectedRoute requiredRole="admin">
-            <AdminDashboard />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/admin/add-video', 
-        element: (
-          <ProtectedRoute requiredRole="admin">
-            <AddVideoPage />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/admin/users', 
-        element: (
-          <ProtectedRoute requiredRole="admin">
-            <AdminUsers />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/admin/videos', 
-        element: (
-          <ProtectedRoute requiredRole="admin">
-            <AdminVideos />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/admin/courses', 
-        element: (
-          <ProtectedRoute requiredRole="admin">
-            <AdminCourses />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/admin/flashcards', 
-        element: (
-          <ProtectedRoute requiredRole="admin">
-            <AddFlashcards />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: '/admin/qcms', 
-        element: (
-          <ProtectedRoute requiredRole="admin">
-            <AdminQCM />
-          </ProtectedRoute>
-        ) 
-      },
-    ],
-  }), []);
+  const routeElements = useMemo(() => {
+    return [
+      ...publicRoutes.map(({ path, element }) => (
+        <Route key={path} path={path} element={element} />
+      )),
 
-  const allRoutes = [...routes.public, ...routes.studentPaid, ...routes.student, ...routes.admin];
+      ...studentPaidRoutes.map(({ path, element, featureName }) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <ProtectedRoute
+              requiredRole="student"
+              isPaidRequired
+              featureName={featureName}
+            >
+              {element}
+            </ProtectedRoute>
+          }
+        />
+      )),
 
-  return (
-    <Routes>
-      {allRoutes.map(({ path, element }, index) => (
-        <Route key={`${path}-${index}`} path={path} element={element} />
-      ))}
-      <Route path="*" element={<ErrorPage language={language} />} />
-    </Routes>
-  );
+      ...studentRoutes.map(({ path, element }) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <ProtectedRoute requiredRole="student">
+              {element}
+            </ProtectedRoute>
+          }
+        />
+      )),
+
+      ...adminRoutes.map(({ path, element }) => (
+        <Route
+          key={path}
+          path={path}
+          element={
+            <ProtectedRoute requiredRole="admin">
+              {element}
+            </ProtectedRoute>
+          }
+        />
+      )),
+
+      <Route
+        key="not-found"
+        path="*"
+        element={
+          <ErrorPage
+            language={language}
+            message={language === 'fr' ? 'Page introuvable.' : 'الصفحة غير موجودة.'}
+          />
+        }
+      />,
+    ];
+  }, [language]);
+
+  return <Routes>{routeElements}</Routes>;
 };
 
-function App() {
+const AppShell = () => {
   useEffect(() => {
     try {
       const storedDeck = sessionStorage.getItem('currentDeck');
-      console.log('App - currentDeck in sessionStorage:', storedDeck ? 'Found' : 'Not found');
-      console.log('App - LanguageContext initialized');
 
-      if ('performance' in window && 'measure' in performance) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          'App - currentDeck in sessionStorage:',
+          storedDeck ? 'Found' : 'Not found'
+        );
+        console.log('App - LanguageContext initialized');
+      }
+
+      if ('performance' in window && 'mark' in performance) {
         performance.mark('app-start');
       }
     } catch (error) {
@@ -364,11 +514,18 @@ function App() {
     const handleUnhandledRejection = (event) => {
       console.error('Unhandled promise rejection:', event.reason);
 
-      if (event.reason?.message?.includes('payment') || event.reason?.code?.includes('PAYMENT')) {
+      const message = event.reason?.message || '';
+      const code = event.reason?.code || '';
+
+      if (
+        message.toLowerCase().includes('payment') ||
+        code.toUpperCase().includes('PAYMENT')
+      ) {
         const errorParams = new URLSearchParams({
-          error: event.reason.code || 'PAYMENT_ERROR',
-          error_description: event.reason.message || 'Une erreur de paiement est survenue'
+          error: code || 'PAYMENT_ERROR',
+          error_description: message || 'Une erreur de paiement est survenue',
         });
+
         window.location.href = `/payment-error?${errorParams.toString()}`;
       }
     };
@@ -377,7 +534,6 @@ function App() {
       console.error('Global JavaScript error:', event.error);
 
       if (event.error?.name === 'ChunkLoadError') {
-        console.log('Chunk load error detected, reloading page...');
         window.location.reload();
       }
     };
@@ -392,27 +548,35 @@ function App() {
   }, []);
 
   return (
+    <div className="App">
+      <Header />
+
+      <Suspense fallback={<LoadingSpinner />}>
+        <main className="app-main">
+          <AppRoutes />
+        </main>
+      </Suspense>
+
+      <Footer />
+      <Chatbot />
+      <PaymentNotifications />
+    </div>
+  );
+};
+
+function App() {
+  return (
     <ErrorBoundary>
       <Router>
-        <AuthProvider>
-          <LanguageProvider>
+        <LanguageProvider>
+          <AuthProvider>
             <PaymentProvider>
               <ToastProvider>
-                <div className="App min-h-screen flex flex-col bg-gray-100">
-                  <Header />
-                  <Suspense fallback={<LoadingSpinner />}>
-                    <main className="flex-1 container mx-auto px-4 py-8">
-                      <AppRoutes />
-                    </main>
-                  </Suspense>
-                  <Footer />
-                  <Chatbot />
-                  <PaymentNotifications />
-                </div>
+                <AppShell />
               </ToastProvider>
             </PaymentProvider>
-          </LanguageProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </LanguageProvider>
       </Router>
     </ErrorBoundary>
   );
