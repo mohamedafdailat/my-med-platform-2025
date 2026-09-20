@@ -320,6 +320,20 @@ const AdminDashboard = () => {
             color: 'from-cyan-600 to-blue-700',
             badge: statsData.flashcards,
           },
+          {
+            title: language === 'fr' ? 'Bibliothèque des flashcards' : 'مكتبة البطاقات',
+            description: language === 'fr' ? 'Consulter les decks personnels et gérer les contenus partagés.' : 'عرض المجموعات الشخصية وإدارة المحتوى المشترك.',
+            to: '/flashcards',
+            icon: Brain,
+            color: 'from-cyan-600 to-blue-700',
+          },
+          {
+            title: language === 'fr' ? 'Bibliothèque des quiz' : 'مكتبة الاختبارات',
+            description: language === 'fr' ? 'Consulter les quiz et gérer leur visibilité.' : 'عرض الاختبارات وإدارة ظهورها.',
+            to: '/quizzes',
+            icon: FileQuestion,
+            color: 'from-yellow-500 to-orange-600',
+          },
         ],
       },
       {
@@ -336,7 +350,7 @@ const AdminDashboard = () => {
           {
             title: t.settings,
             description: t.settingsDesc,
-            to: '/admin/settings',
+            to: '/settings',
             icon: Settings,
             color: 'from-gray-700 to-slate-900',
             badge: '⚙',
@@ -344,7 +358,7 @@ const AdminDashboard = () => {
         ],
       },
     ],
-    [statsData, t]
+    [statsData, t, language]
   );
 
   return (

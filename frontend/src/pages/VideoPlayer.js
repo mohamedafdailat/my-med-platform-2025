@@ -9,8 +9,9 @@ import {
   query,
   where,
   getDocs,
-  setDoc,
 } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
+import { getVisibleDocuments } from '../services/contentService';
 import FlashcardGenerator from './FlashcardGenerator';
 import QCMPlayer from './QCMPlayer.js';
 
@@ -38,6 +39,7 @@ const normalizeLocalizedArray = (value, language) => {
 const VideoPlayer = () => {
   const { id } = useParams();
   const { language } = useLanguage();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [video, setVideo] = useState(null);
@@ -279,18 +281,12 @@ const VideoPlayer = () => {
 
       setVideo(videoData);
 
-      const flashcardsQuery = query(
-        collection(db, 'flashcards'),
-        where('videoId', '==', id)
-      );
-      const flashcardsSnapshot = await getDocs(flashcardsQuery);
-
-      const flashcardsData = flashcardsSnapshot.docs
-        .map((flashcardDoc) => {
-          const flashcard = flashcardDoc.data();
-
-          return {
-            id: flashcardDoc.id,
+      const documents = await getVisibleDocuments('flashcards', user);
+      const flashcardsData = documents.filter(d => d.data().videoId === id)
+        .flatMap((flashcardDoc) => {
+          const data = flashcardDoc.data();
+          return (data.cards || data.flashcards || [data]).map((flashcard, index) => ({
+            id: `${flashcardDoc.id}-${index}`,
             question:
               flashcard.question ||
               flashcard.front ||
@@ -301,7 +297,7 @@ const VideoPlayer = () => {
               { fr: '', ar: '' },
             difficulty: flashcard.difficulty || 'medium',
             category: flashcard.category || videoData.category,
-          };
+          }));
         })
         .filter((card) => getLocalizedText(card.question, language));
 
@@ -332,7 +328,7 @@ const VideoPlayer = () => {
     } finally {
       setLoading(false);
     }
-  }, [id, t, isYouTubeUrl, extractYouTubeId, language]);
+  }, [id, t, isYouTubeUrl, extractYouTubeId, language, user]);
 
   useEffect(() => {
     fetchVideoData();
@@ -406,25 +402,9 @@ const VideoPlayer = () => {
         category: card.category || video?.category || 'other',
       }));
 
-      try {
-        await Promise.all(
-          flashcardsWithVideoId.map((card) =>
-            setDoc(doc(db, 'flashcards', card.id), {
-              question: card.question,
-              answer: card.answer,
-              difficulty: card.difficulty,
-              category: card.category,
-              videoId: id,
-              createdAt: new Date(),
-            })
-          )
-        );
-
-        setFlashcards((prev) => [...prev, ...flashcardsWithVideoId]);
-        setShowGenerator(false);
-      } catch (saveError) {
-        console.error('Erreur sauvegarde flashcards vidéo:', saveError);
-      }
+      // The generator has already persisted this private deck and its videoId.
+      setFlashcards((prev) => [...prev, ...flashcardsWithVideoId]);
+      setShowGenerator(false);
     },
     [id, video]
   );
@@ -727,6 +707,7 @@ const VideoPlayer = () => {
               onClose={() => setShowGenerator(false)}
               onDeckSaved={handleNewFlashcards}
               initialCategory={video.category}
+              videoId={id}
             />
           </div>
         )}

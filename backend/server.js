@@ -1,4 +1,5 @@
 import express from 'express';
+import { createLearningContentRouter } from './src/routes/learningContent.js';
 import admin from 'firebase-admin';
 import cors from 'cors';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -9,6 +10,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { body, validationResult } from 'express-validator';
 import dotenv from 'dotenv';
+import { createUserProfilesRouter, createRequireAdmin } from './src/routes/userProfiles.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -278,7 +280,7 @@ const authenticate = async (req, res, next) => {
   }
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await admin.auth().verifyIdToken(token, true);
     req.user = decodedToken;
     return next();
   } catch (error) {
@@ -290,6 +292,9 @@ const authenticate = async (req, res, next) => {
 /* =========================================================
    AI helpers
 ========================================================= */
+
+app.use('/api/users', createUserProfilesRouter({ auth: admin.auth(), db, authenticate }));
+const requireAdmin = createRequireAdmin(admin.auth());
 
 const getXaiApiKey = () => process.env.XAI_API_KEY || process.env.XAI_API_KEY_2;
 
@@ -522,178 +527,13 @@ app.post('/api/ai/xai-chat', authenticate, async (req, res) => {
    Quizzes
 ========================================================= */
 
-app.get('/api/quizzes', async (req, res) => {
-  try {
-    const quizzesRef = db.collection('quizzes');
-    const q = quizzesRef
-      .where('status', '==', 'active')
-      .orderBy('createdAt', 'desc')
-      .limit(50);
-
-    const snapshot = await q.get();
-    const quizzes = snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    }));
-
-    return res.status(200).json(quizzes);
-  } catch (error) {
-    console.error('Erreur lors de la récupération des quiz:', error);
-
-    if (error.code === 9 && error.details?.includes('requires an index')) {
-      return res.status(500).json({
-        error:
-          "Index Firestore requis. Veuillez créer l'index via le lien fourni dans les logs.",
-      });
-    }
-
-    return res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.get('/api/quizzes/generated', authenticate, async (req, res) => {
-  try {
-    const quizzesRef = db.collection('quizzes');
-    const q = quizzesRef
-      .where('type', '==', 'ai-generated')
-      .where('creatorId', '==', req.user.uid)
-      .orderBy('createdAt', 'desc')
-      .limit(50);
-
-    const snapshot = await q.get();
-    const quizzes = snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...docSnap.data(),
-    }));
-
-    return res.status(200).json(quizzes);
-  } catch (error) {
-    console.error('Erreur lors de la récupération des quiz générés:', error);
-
-    if (error.code === 9 && error.details?.includes('requires an index')) {
-      return res.status(500).json({
-        error:
-          "Index Firestore requis. Veuillez créer l'index via le lien fourni dans les logs.",
-      });
-    }
-
-    return res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.post(
-  '/api/quizzes',
-  authenticate,
-  [
-    body('title').isObject().withMessage('Le titre doit être un objet avec fr et ar'),
-    body('description')
-      .isObject()
-      .withMessage('La description doit être un objet avec fr et ar'),
-    body('category').isString().notEmpty().withMessage('La catégorie est requise'),
-    body('questions').isArray({ min: 1 }).withMessage('Au moins une question est requise'),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    try {
-      const quizData = {
-        ...req.body,
-        type: 'ai-generated',
-        status: 'active',
-        creatorId: req.user.uid,
-        createdAt: new Date(),
-        attempts: [],
-        bestScore: 0,
-      };
-
-      const docRef = await db.collection('quizzes').add(quizData);
-
-      return res.status(201).json({
-        id: docRef.id,
-        ...quizData,
-      });
-    } catch (error) {
-      console.error("Erreur lors de l'ajout du quiz:", error);
-      return res.status(500).json({ error: 'Erreur serveur' });
-    }
-  }
-);
-
-app.post(
-  '/api/quizzes/:id/attempt',
-  authenticate,
-  [body('answers').isArray({ min: 1 }).withMessage('Les réponses sont requises')],
-  async (req, res) => {
-    const errors = validationResult(req);
-
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    try {
-      const docRef = db.collection('quizzes').doc(req.params.id);
-      const quizSnap = await docRef.get();
-
-      if (!quizSnap.exists) {
-        return res.status(404).json({ error: 'Quiz non trouvé' });
-      }
-
-      const quiz = quizSnap.data();
-      let score = 0;
-
-      const updatedAnswers = req.body.answers.map((answer) => {
-        const question = quiz.questions.find(
-          (q) => q.id === answer.questionId
-        );
-
-        if (!question) {
-          return { ...answer, isCorrect: false };
-        }
-
-        const isCorrect =
-          question.type === 'multiple_choice'
-            ? answer.userAnswer === question.correctAnswer
-            : question.type === 'true_false'
-              ? question.correctAnswer === answer.userAnswer
-              : question.correctAnswer?.fr?.toLowerCase() ===
-                answer.userAnswer?.toLowerCase();
-
-        if (isCorrect) {
-          score += 100 / quiz.questions.length;
-        }
-
-        return { ...answer, isCorrect };
-      });
-
-      const newAttempt = {
-        userId: req.user.uid,
-        score,
-        completedAt: new Date(),
-        answers: updatedAnswers,
-      };
-
-      await docRef.update({
-        attempts: [...(quiz.attempts || []), newAttempt],
-        bestScore: Math.max(quiz.bestScore || 0, score),
-      });
-
-      return res.status(200).json({ score });
-    } catch (error) {
-      console.error('Erreur lors de la soumission de la tentative:', error);
-      return res.status(500).json({ error: 'Erreur serveur' });
-    }
-  }
-);
+app.use('/api/quizzes', createLearningContentRouter({ auth: admin.auth(), db, authenticate }));
 
 /* =========================================================
    Videos
 ========================================================= */
 
-app.get('/api/videos', async (req, res) => {
+app.get('/api/videos', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('videos').get();
     const videos = snapshot.docs.map((docSnap) => ({
@@ -711,6 +551,7 @@ app.get('/api/videos', async (req, res) => {
 app.post(
   '/api/videos',
   authenticate,
+  requireAdmin,
   [
     body('title').notEmpty().withMessage('Le titre est requis'),
     body('youtubeLink').notEmpty().withMessage('Le lien YouTube est requis'),
@@ -764,7 +605,7 @@ app.post(
    Courses
 ========================================================= */
 
-app.get('/api/courses', async (req, res) => {
+app.get('/api/courses', authenticate, async (req, res) => {
   try {
     const snapshot = await db.collection('courses').get();
     const courses = snapshot.docs.map((docSnap) => ({
@@ -782,6 +623,7 @@ app.get('/api/courses', async (req, res) => {
 app.post(
   '/api/courses',
   authenticate,
+  requireAdmin,
   [
     body('title').notEmpty().withMessage('Le titre est requis'),
     body('category').notEmpty().withMessage('La catégorie est requise'),

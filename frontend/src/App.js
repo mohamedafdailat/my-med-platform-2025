@@ -376,7 +376,7 @@ const studentPaidRoutes = [
   },
 ];
 
-const studentRoutes = [
+const accountRoutes = [
   {
     path: '/profile',
     element: <Profile />,
@@ -451,12 +451,12 @@ const AppRoutes = () => {
         />
       )),
 
-      ...studentRoutes.map(({ path, element }) => (
+      ...accountRoutes.map(({ path, element }) => (
         <Route
           key={path}
           path={path}
           element={
-            <ProtectedRoute requiredRole="student">
+            <ProtectedRoute>
               {element}
             </ProtectedRoute>
           }

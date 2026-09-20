@@ -4,15 +4,13 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import {
-  collection,
-  query,
-  where,
-  getDocs,
   deleteDoc,
   doc,
+  updateDoc,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import FlashcardGenerator from './FlashcardGenerator';
+import { getVisibleDocuments } from '../services/contentService';
 import {
   ChevronLeft,
   ChevronRight,
@@ -349,8 +347,7 @@ const Flashcards = () => {
   const isAdmin = useCallback((currentUser) => {
     return (
       currentUser?.role === 'admin' ||
-      currentUser?.customClaims?.role === 'admin' ||
-      currentUser?.email === 'admin_1@medplatform.com'
+      currentUser?.customClaims?.role === 'admin'
     );
   }, []);
 
@@ -362,7 +359,7 @@ const Flashcards = () => {
       user?.customClaims?.role === 'student' ||
       (!user?.role && !user?.customClaims?.role);
 
-    return isAdmin(user) || (isStudent && user.subscriptionStatus === 'paid');
+    return isAdmin(user) || user.customClaims?.unlimitedAccess === true || (isStudent && user.subscriptionStatus === 'paid');
   }, [authLoading, user, isAdmin]);
 
   const normalizeText = useCallback((value, fallback) => {
@@ -414,7 +411,7 @@ const Flashcards = () => {
 
   const getDeckCards = useCallback(
     (data) => {
-      const possibleCards = data?.cards || data?.flashcards || data?.items || [];
+      const possibleCards = data?.cards || data?.flashcards || data?.items || (data?.question ? [data] : []);
       if (!Array.isArray(possibleCards)) return [];
 
       return possibleCards
@@ -439,7 +436,7 @@ const Flashcards = () => {
     decks.forEach((deck) => {
       if (!deck) return;
 
-      const key = `${deck.title || ''}-${deck.ownerId || 'default'}`;
+      const key = deck.id;
       const existing = seen.get(key);
 
       if (!existing || (deck.cards?.length || 0) > (existing.cards?.length || 0)) {
@@ -469,10 +466,9 @@ const Flashcards = () => {
         return;
       }
 
-      const q = query(collection(db, 'flashcards'), where('ownerId', '==', userId));
-      const querySnapshot = await getDocs(q);
+      const documents = await getVisibleDocuments('flashcards', user);
 
-      const decks = querySnapshot.docs
+      const decks = documents
         .map((snapshot) => {
           const data = snapshot.data();
           const cards = getDeckCards(data);
@@ -481,7 +477,7 @@ const Flashcards = () => {
 
           const semester = data.semester || user?.semester || null;
 
-          if (!isAdmin(user) && semester && user?.semester && user.semester !== semester) {
+          if (data.visibility === 'shared' && !isAdmin(user) && semester && user?.semester && user.semester !== semester) {
             return null;
           }
 
@@ -489,15 +485,16 @@ const Flashcards = () => {
 
           return {
             id: snapshot.id,
-            title: data.title || t('deckWithoutTitle'),
-            description: data.description || '',
+            title: normalizeText(data.title, t('deckWithoutTitle')),
+            description: normalizeText(data.description, ''),
             category,
             difficulty: data.difficulty || cards[0]?.difficulty || 'medium',
             cardCount: cards.length,
             createdAt: getFirestoreDate(data.createdAt),
             cards,
             type: 'custom',
-            ownerId: data.ownerId || userId,
+            ownerId: data.ownerId || null,
+            visibility: data.visibility || 'private',
             semester,
             thumbnail: data.thumbnail || LOCAL_THUMBNAILS[category] || LOCAL_THUMBNAILS.general,
             qualityScore: data.qualityScore || null,
@@ -523,6 +520,7 @@ const Flashcards = () => {
     isAdmin,
     removeDuplicateDecks,
     t,
+    normalizeText,
   ]);
 
   useEffect(() => {
@@ -642,7 +640,7 @@ const Flashcards = () => {
   );
 
   const allDecks = useMemo(
-    () => [...customDecks, ...defaultFlashcardDecks],
+    () => [...new Map([...defaultFlashcardDecks, ...customDecks].map(deck => [deck.id, deck])).values()],
     [customDecks, defaultFlashcardDecks]
   );
 
@@ -882,7 +880,7 @@ const Flashcards = () => {
           <div className="flashcard-deck-head">
             <h3>{deck.title}</h3>
             <span className={`deck-type-badge ${deck.type === 'custom' ? 'custom' : ''}`}>
-              {deck.type === 'custom' ? t('personalized') : t('default')}
+              {deck.visibility === 'shared' ? (language === 'fr' ? 'Partagé' : 'مشترك') : deck.type === 'custom' ? t('personalized') : t('default')}
             </span>
           </div>
 
@@ -912,7 +910,7 @@ const Flashcards = () => {
               {t('study')}
             </button>
 
-            {deck.type === 'custom' && (
+            {deck.type === 'custom' && (isAdmin(user) || (deck.ownerId === user?.uid && deck.visibility !== 'shared')) && (
               <button
                 type="button"
                 onClick={() => handleDeleteDeck(deck.id)}
@@ -924,6 +922,12 @@ const Flashcards = () => {
               </button>
             )}
           </div>
+          {deck.type === 'custom' && isAdmin(user) && <button type="button" className="mt-3 text-sm text-blue-700 underline" onClick={async () => {
+            const shared = deck.visibility !== 'shared';
+            if (!window.confirm(shared ? (language === 'fr' ? 'Rendre ces flashcards visibles par tous les étudiants ?' : 'إتاحة هذه البطاقات لجميع الطلاب؟') : (language === 'fr' ? 'Réserver ces flashcards à leur créateur ?' : 'إرجاع هذه البطاقات إلى صاحبها فقط؟'))) return;
+            try { await updateDoc(doc(db, 'flashcards', deck.id), { visibility: shared ? 'shared' : 'private' }); await fetchCustomDecks(); }
+            catch { setError(t('loadError')); }
+          }}>{deck.visibility === 'shared' ? (language === 'fr' ? 'Rendre personnel' : 'جعله شخصياً') : (language === 'fr' ? 'Publier dans la bibliothèque' : 'نشر في المكتبة')}</button>}
         </div>
       </article>
     );

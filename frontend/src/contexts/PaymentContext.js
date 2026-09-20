@@ -275,12 +275,11 @@ export const PaymentProvider = ({ children }) => {
     const paidFeatures = ['videos', 'courses', 'quizzes', 'flashcards', 'quiz-generator'];
     
     if (paidFeatures.includes(featureName) && userSubscriptionStatus !== 'paid') {
-      setError('SUBSCRIPTION_REQUIRED');
       return false;
     }
     
     return true;
-  }, [setError]);
+  }, []);
 
   // Fonction pour naviguer vers la page d'erreur détaillée
   const navigateToErrorPage = useCallback(() => {

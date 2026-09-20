@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import api from '../services/api';
 import { toast } from 'react-toastify';
 import { ChevronLeft, ChevronRight, Trophy, CheckCircle, XCircle, Eye, EyeOff, Save, RotateCcw, BookOpen } from 'lucide-react';
 
@@ -96,7 +97,8 @@ const QuizPlayer = () => {
       const docRef = doc(db, 'quizzes', id);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setQuiz({ id: docSnap.id, ...docSnap.data() });
+        const data = docSnap.data();
+        setQuiz({ ...data, id: docSnap.id, questions: (data.questions || []).map((question, index) => ({ ...question, id: question.id ?? String(index) })) });
         setQuizStartTime(Date.now());
       } else {
         setError(t.error + ' (Quiz non trouvé)');
@@ -154,16 +156,10 @@ const QuizPlayer = () => {
 
     if (user) {
       try {
-        const docRef = doc(db, 'quizzes', id);
-        const newAttempt = {
-          userId: user.uid,
-          score: results.percentage,
-          completedAt: new Date(),
-          answers: userAnswers,
-        };
-        await updateDoc(docRef, {
-          attempts: [...(quiz.attempts || []), newAttempt],
-          bestScore: Math.max(quiz.bestScore || 0, results.percentage),
+        await api.post(`/quizzes/${encodeURIComponent(id)}/attempt`, {
+          answers: quiz.questions.map(question => ({ questionId: question.id, userAnswer: userAnswers[question.id] ?? null })),
+          language,
+          timeSpent: results.timeSpent,
         });
         toast.success(language === 'fr' ? 'Quiz soumis avec succès !' : 'تم إرسال الاختبار بنجاح!');
       } catch (error) {

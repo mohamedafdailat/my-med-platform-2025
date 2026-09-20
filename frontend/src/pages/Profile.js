@@ -2,9 +2,11 @@ import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { NavLink } from 'react-router-dom';
+import ProfileEditor from '../components/ProfileEditor';
+import { toDate } from '../utils/dates';
 
 const Profile = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, profileError } = useAuth();
   const { language } = useLanguage();
   const isRTL = language === 'ar';
 
@@ -32,10 +34,10 @@ const Profile = () => {
     ? (language === 'fr' ? 'Payé' : 'مدفوع')
     : (language === 'fr' ? 'Non payé' : 'غير مدفوع');
   const subscriptionClass = isPaid ? 'text-green-600' : 'text-red-600';
-  const planType = user.subscription?.planType || (language === 'fr' ? 'Aucun plan' : 'لا يوجد خطة');
+  const planType = user.subscription?.planType || user.subscription?.type || (language === 'fr' ? 'Aucun plan' : 'لا يوجد خطة');
 
   // Parse end date and calculate remaining time
-  const endDate = user.subscription?.endDate ? new Date(user.subscription.endDate) : null;
+  const endDate = toDate(user.subscription?.endDate);
   const currentDate = new Date(); // Current date: August 4, 2025, 08:50 PM +01
   let remainingDays = null;
 
@@ -59,6 +61,8 @@ const Profile = () => {
           {language === 'fr' ? 'Profil' : 'الملف الشخصي'}
         </h2>
         <div className="space-y-4">
+          {profileError && <p role="alert" className="text-amber-700">{language === 'fr' ? 'Certaines informations du profil n’ont pas pu être chargées.' : 'تعذر تحميل بعض معلومات الملف الشخصي.'}</p>}
+          <ProfileEditor user={user} language={language} />
           <p className="text-gray-700">
             {language === 'fr' ? 'Nom :' : 'الاسم:'} {user.displayName || (language === 'fr' ? 'Non défini' : 'غير معرف')}
           </p>

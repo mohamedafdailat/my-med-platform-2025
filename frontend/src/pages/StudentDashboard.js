@@ -39,6 +39,7 @@ import {
   limit,
   orderBy,
   query,
+  where,
 } from 'firebase/firestore';
 
 ChartJS.register(
@@ -367,7 +368,7 @@ const StudentDashboard = () => {
 
     try {
       const coursesQuery = query(collection(db, 'courses'), limit(2));
-      const quizzesQuery = query(collection(db, 'quizzes'), limit(2));
+      const quizzesQuery = query(collection(db, 'quizzes'), where('visibility', '==', 'shared'), limit(2));
 
       const [coursesSnap, quizzesSnap] = await Promise.allSettled([
         getDocs(coursesQuery),

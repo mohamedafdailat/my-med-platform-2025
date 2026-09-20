@@ -618,7 +618,7 @@ const QuizGenerator = () => {
     setProgress(10);
     setProcessingStage(t('analyzingContent'));
 
-    if (!user || user.subscriptionStatus !== 'paid') {
+    if (!user || (user.subscriptionStatus !== 'paid' && user.customClaims?.role !== 'admin' && !user.customClaims?.unlimitedAccess)) {
       throw new Error(t('subscriptionRequired'));
     }
 
@@ -829,6 +829,7 @@ FORMAT JSON :
         type: 'ai-generated',
         status: 'active',
         creatorId: user.uid,
+        visibility: 'private',
         createdAt: new Date(),
         questions: quizData.questions,
         difficulty: quizData.difficulty,

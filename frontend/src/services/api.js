@@ -43,7 +43,7 @@ const api = axios.create({
 
 /**
  * Récupère le token Firebase si l'utilisateur est connecté.
- * Fallback localStorage gardé uniquement pour compatibilité avec l'ancien code.
+ * Firebase reste la seule source de session, y compris après déconnexion.
  */
 const getAuthToken = async () => {
   try {
@@ -51,10 +51,10 @@ const getAuthToken = async () => {
       return await auth.currentUser.getIdToken();
     }
 
-    return localStorage.getItem('token');
+    return null;
   } catch (error) {
     console.warn('Impossible de récupérer le token Firebase:', error);
-    return localStorage.getItem('token');
+    return null;
   }
 };
 

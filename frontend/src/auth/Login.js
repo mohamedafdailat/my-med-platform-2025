@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation, NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase';
+import { useAuth } from '../contexts/AuthContext';
+import { safeReturnPath } from '../utils/navigation';
 import {
   Mail,
   Lock,
@@ -18,17 +20,32 @@ import {
 const Login = () => {
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user, loading: authLoading } = useAuth();
+  const [loginRequested, setLoginRequested] = useState(false);
 
   const isRTL = language === 'ar';
 
   const [formData, setFormData] = useState({
-    email: '',
+    email: location.state?.registeredEmail || '',
     password: '',
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (location.state?.registeredEmail) {
+      setFormData(previous => ({ ...previous, email: location.state.registeredEmail }));
+    }
+  }, [location.state?.registeredEmail]);
+
+  useEffect(() => {
+    if (!loginRequested || authLoading || !user || user.uid !== auth.currentUser?.uid) return;
+    const destination = location.state?.from || new URLSearchParams(location.search).get('redirect');
+    navigate(safeReturnPath(destination, user.role === 'admin' ? '/admin' : '/dashboard'), { replace: true });
+  }, [loginRequested, authLoading, user, location.state, location.search, navigate]);
 
   const t = {
     fr: {
@@ -135,7 +152,7 @@ const Login = () => {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate('/dashboard');
+      setLoginRequested(true);
     } catch (err) {
       console.error('Login error:', err);
       setError(getFirebaseErrorMessage(err.code));

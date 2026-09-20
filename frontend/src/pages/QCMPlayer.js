@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../firebase/config';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 const QCMPlayer = ({ qcm, onClose, onComplete }) => {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
   const [timeRemaining, setTimeRemaining] = useState(qcm.timeLimit * 60); // en secondes
@@ -95,6 +97,7 @@ const QCMPlayer = ({ qcm, onClose, onComplete }) => {
     // Sauvegarder les résultats dans la base de données
     try {
       await addDoc(collection(db, 'qcm_results'), {
+        userId: user.uid,
         qcmId: qcm.id,
         videoId: qcm.videoId,
         answers,

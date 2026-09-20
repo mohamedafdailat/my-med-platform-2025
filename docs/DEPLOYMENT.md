@@ -14,7 +14,7 @@ This project deploys as one Railway service:
 - Project: `happy-forgiveness` (`c09e9625-3b44-46fc-8f51-968af4fdeb21`).
 - Environment: `production` (`72ae5847-f479-4fef-839c-d817655393b7`).
 - Service: `my-med-platform-2025` (`a15226ef-835b-4f2c-a074-5de18f7ddf4d`).
-- Public URL: https://my-med-platform-2025-production-e53b.up.railway.app
+- Public URL: https://my-med-platform.up.railway.app
 - Repository root: `/`; Dockerfile: `/Dockerfile`.
 - Start command: `node backend/server.js`.
 - Health check: `/health`, timeout 120 seconds.
@@ -116,15 +116,15 @@ After Railway provides the public URL:
 2. Confirm Firestore and Storage production rules are applied.
 3. Confirm the Firebase service account used by Railway has the required permissions.
 
-The domain `my-med-platform-2025-production-e53b.up.railway.app` is authorized in the existing Firebase project. Existing authorized domains are preserved.
+The domain `my-med-platform.up.railway.app` is authorized in the existing Firebase project. Existing authorized domains are preserved.
 
 ## 7. Production Checks
 
 After deployment:
 
 ```bash
-curl https://my-med-platform-2025-production-e53b.up.railway.app/health
-curl https://my-med-platform-2025-production-e53b.up.railway.app/api/health
+curl https://my-med-platform.up.railway.app/health
+curl https://my-med-platform.up.railway.app/api/health
 ```
 
 Then test:
@@ -139,3 +139,9 @@ Then test:
 ## 8. Rollback
 
 Use Railway deployment history to roll back to the previous successful deployment.
+
+## 9. Profile and content access changes
+
+The candidate implementation on `improvement/production-audit-profiles` introduces private generated content, server-managed account roles and individual quiz results. Its data model and coordinated migration requirements are documented in [CONTENT_ACCESS.md](CONTENT_ACCESS.md). Local verification is documented in [tests/README.md](../tests/README.md).
+
+Do not merge this candidate into the Railway-connected branch before the account retention list and legacy content migration are ready. The Firebase rules and existing data need a coordinated rollout with the application. `firebase.local.json` is only for the isolated demo emulators.

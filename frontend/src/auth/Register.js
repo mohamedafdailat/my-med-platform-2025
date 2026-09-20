@@ -349,6 +349,7 @@ const Register = () => {
       await setDoc(doc(db, 'users', createdUser.uid), {
         uid: createdUser.uid,
         fullName: normalizedFullName,
+        displayName: normalizedFullName,
         email: normalizedEmail,
         phoneNumber: normalizedPhone,
         semester: String(formData.semester),

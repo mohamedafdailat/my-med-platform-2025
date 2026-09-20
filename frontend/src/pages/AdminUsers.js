@@ -2,18 +2,13 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { db } from '../firebase';
-import {
-  collection,
-  getDocs,
-  deleteDoc,
-  doc,
-  updateDoc,
-} from 'firebase/firestore';
+import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { toDate } from '../utils/dates';
 import {
   Users,
   Search,
-  Trash2,
+  Power,
   ShieldCheck,
   GraduationCap,
   Mail,
@@ -21,12 +16,12 @@ import {
   Save,
   XCircle,
   CheckCircle,
-  UserCheck,
   CreditCard,
 } from 'lucide-react';
 
 const AdminUsers = () => {
   const { language } = useLanguage();
+  const { user: currentUser } = useAuth();
   const isRTL = language === 'ar';
 
   const [users, setUsers] = useState([]);
@@ -57,7 +52,9 @@ const AdminUsers = () => {
       status: 'Statut',
       createdAt: 'Créé le',
       actions: 'Actions',
-      delete: 'Supprimer',
+      delete: 'Désactiver',
+      enable: 'Réactiver',
+      missingAccount: 'Profil sans compte de connexion',
       save: 'Enregistrer',
       refresh: 'Actualiser',
       admin: 'Admin',
@@ -70,15 +67,15 @@ const AdminUsers = () => {
       active: 'Actif',
       inactive: 'Inactif',
       unknown: 'N/A',
-      confirmDelete: 'Confirmer la suppression de cet utilisateur ?',
+      confirmDelete: 'Désactiver la connexion de cet utilisateur ? Ses données seront conservées.',
       totalUsers: 'Utilisateurs',
       paidUsers: 'Abonnés payants',
       students: 'Étudiants',
       admins: 'Admins',
       loadError: 'Erreur lors du chargement des utilisateurs',
-      deleteError: 'Erreur lors de la suppression',
+      deleteError: 'Erreur lors de la modification de l’accès',
       updateError: 'Erreur lors de la mise à jour',
-      deleteSuccess: 'Utilisateur supprimé.',
+      deleteSuccess: 'Accès au compte mis à jour. Les données sont conservées.',
       updateSuccess: 'Utilisateur mis à jour.',
     },
     ar: {
@@ -98,7 +95,9 @@ const AdminUsers = () => {
       status: 'الحالة',
       createdAt: 'تاريخ الإنشاء',
       actions: 'الإجراءات',
-      delete: 'حذف',
+      delete: 'تعطيل',
+      enable: 'إعادة التفعيل',
+      missingAccount: 'ملف شخصي بدون حساب دخول',
       save: 'حفظ',
       refresh: 'تحديث',
       admin: 'مشرف',
@@ -111,15 +110,15 @@ const AdminUsers = () => {
       active: 'نشط',
       inactive: 'غير نشط',
       unknown: 'غير متوفر',
-      confirmDelete: 'هل تريد تأكيد حذف هذا المستخدم؟',
+      confirmDelete: 'هل تريد تعطيل الدخول لهذا المستخدم مع الاحتفاظ ببياناته؟',
       totalUsers: 'المستخدمون',
       paidUsers: 'المشتركون المدفوعون',
       students: 'الطلاب',
       admins: 'المشرفون',
       loadError: 'خطأ أثناء تحميل المستخدمين',
-      deleteError: 'خطأ أثناء الحذف',
+      deleteError: 'خطأ أثناء تعديل الوصول',
       updateError: 'خطأ أثناء التحديث',
-      deleteSuccess: 'تم حذف المستخدم.',
+      deleteSuccess: 'تم تحديث الوصول إلى الحساب مع الاحتفاظ بالبيانات.',
       updateSuccess: 'تم تحديث المستخدم.',
     },
   }[language];
@@ -149,29 +148,15 @@ const AdminUsers = () => {
       setLoading(true);
       setError('');
 
-      const querySnapshot = await getDocs(collection(db, 'users'));
-
-      const usersList = querySnapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
-
-      const uniqueUsers = Array.from(
-        new Map(
-          usersList.map((user) => [
-            String(user.email || user.id).toLowerCase(),
-            user,
-          ])
-        ).values()
-      );
-
-      uniqueUsers.sort((a, b) => {
-        const dateA = new Date(a.createdAt || 0).getTime();
-        const dateB = new Date(b.createdAt || 0).getTime();
-        return dateB - dateA;
-      });
-
-      setUsers(uniqueUsers);
+      const usersList = [];
+      let cursor;
+      do {
+        const { data } = await api.get('/users', { params: cursor ? { cursor } : {} });
+        usersList.push(...data.users);
+        cursor = data.nextCursor;
+      } while (cursor);
+      usersList.sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
+      setUsers(usersList);
     } catch (err) {
       console.error('Erreur fetch users:', err);
       showMessage('error', `${t.loadError} : ${err.message}`);
@@ -201,18 +186,6 @@ const AdminUsers = () => {
 
   const getSubscriptionType = (user) => {
     return user.subscription?.type || user.plan || user.subscriptionType || 'free';
-  };
-
-  const getLocalizedRole = (role) => {
-    const normalizedRole = role || 'user';
-    const labels = {
-      admin: t.admin,
-      student: t.student,
-      teacher: t.teacher,
-      user: t.user,
-    };
-
-    return labels[normalizedRole] || normalizedRole;
   };
 
   const getLocalizedSubscription = (status) => {
@@ -247,15 +220,19 @@ const AdminUsers = () => {
   };
 
   const handleDelete = async (userId) => {
-    if (!window.confirm(t.confirmDelete)) return;
+    const target = users.find((user) => user.id === userId);
+    if (!target || (!target.disabled && !window.confirm(t.confirmDelete))) return;
 
     try {
-      await deleteDoc(doc(db, 'users', userId));
-      setUsers((prev) => prev.filter((user) => user.id !== userId));
+      setSavingUserId(userId);
+      const { data } = await api.patch(`/users/${encodeURIComponent(userId)}`, { disabled: !target.disabled });
+      setUsers((prev) => prev.map((user) => user.id === userId ? data : user));
       showMessage('success', t.deleteSuccess);
     } catch (err) {
       console.error('Erreur delete user:', err);
       showMessage('error', `${t.deleteError} : ${err.message}`);
+    } finally {
+      setSavingUserId(null);
     }
   };
 
@@ -290,21 +267,18 @@ const AdminUsers = () => {
         role: user.role || 'user',
         subscriptionStatus: getSubscriptionStatus(user),
         subscription: {
-          ...(user.subscription || {}),
           type: getSubscriptionType(user),
-          status: getSubscriptionStatus(user),
         },
-        updatedAt: new Date().toISOString(),
       };
 
-      await updateDoc(doc(db, 'users', user.id), payload);
+      const { data } = await api.patch(`/users/${encodeURIComponent(user.id)}`, payload);
 
       setUsers((prev) =>
         prev.map((item) =>
           item.id === user.id
             ? {
                 ...item,
-                ...payload,
+                ...data,
               }
             : item
         )
@@ -552,6 +526,8 @@ const AdminUsers = () => {
                           <div className="flex items-center gap-2 text-gray-700">
                             <Mail className="h-4 w-4 text-gray-400" />
                             {user.email || t.unknown}
+                            {!user.accountExists && <span className="text-xs text-amber-700">{t.missingAccount}</span>}
+                            {user.disabled && <span className="text-xs text-red-700">{t.inactive}</span>}
                           </div>
                         </td>
 
@@ -562,6 +538,7 @@ const AdminUsers = () => {
                         <td className="whitespace-nowrap px-4 py-4">
                           <select
                             value={user.role || 'user'}
+                            disabled={!user.accountExists || user.id === currentUser?.uid}
                             onChange={(e) =>
                               handleLocalChange(user.id, 'role', e.target.value)
                             }
@@ -635,7 +612,7 @@ const AdminUsers = () => {
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={() => handleSaveUser(user)}
-                              disabled={savingUserId === user.id}
+                              disabled={savingUserId === user.id || !user.accountExists}
                               className="inline-flex items-center gap-1 rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
                             >
                               {savingUserId === user.id ? (
@@ -648,10 +625,11 @@ const AdminUsers = () => {
 
                             <button
                               onClick={() => handleDelete(user.id)}
+                              disabled={savingUserId === user.id || !user.accountExists || user.id === currentUser?.uid}
                               className="inline-flex items-center gap-1 rounded-xl bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
                             >
-                              <Trash2 className="h-4 w-4" />
-                              {t.delete}
+                              <Power className="h-4 w-4" />
+                              {user.disabled ? t.enable : t.delete}
                             </button>
                           </div>
                         </td>

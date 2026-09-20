@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { db } from '../firebase';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { getVisibleDocuments, getOwnQuizAttempts } from '../services/contentService';
+import { toDate } from '../utils/dates';
+import { db } from '../firebase/config';
+import { doc, updateDoc } from 'firebase/firestore';
 import debounce from 'lodash/debounce';
 import { toast } from 'react-toastify';
 
@@ -141,35 +143,21 @@ const Quizzes = () => {
     setLoading(true);
     setError(null);
     try {
-      let quizzesQuery;
-      if (selectedTab === 'aiGenerated' && user) {
-        quizzesQuery = query(
-          collection(db, 'quizzes'),
-          where('type', '==', 'ai-generated'),
-          where('creatorId', '==', user.uid),
-          where('status', '==', 'active'),
-          orderBy('createdAt', 'desc'),
-          limit(50)
-        );
-      } else {
-        quizzesQuery = query(
-          collection(db, 'quizzes'),
-          where('status', '==', 'active'),
-          orderBy('createdAt', 'desc'),
-          limit(50)
-        );
-      }
-      const querySnapshot = await getDocs(quizzesQuery);
-      const processedQuizzes = querySnapshot.docs.map((doc) => ({
+      const [documents, attempts] = await Promise.all([
+        getVisibleDocuments('quizzes', user, { onlyOwn: selectedTab === 'aiGenerated' }),
+        getOwnQuizAttempts(user?.uid),
+      ]);
+      const processedQuizzes = documents.filter(doc => doc.data().status !== 'inactive').map((doc) => ({
         id: doc.id,
         title: doc.data().title || { fr: 'Titre non disponible', ar: 'عنوان غير متاح' },
         description: doc.data().description || { fr: '', ar: '' },
         category: doc.data().category || 'other',
         type: doc.data().type || 'predefined',
         creatorId: doc.data().creatorId || 'anonymous',
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        attempts: doc.data().attempts || [],
-        bestScore: doc.data().bestScore || 0,
+        visibility: doc.data().visibility || 'private',
+        createdAt: toDate(doc.data().createdAt) || new Date(0),
+        attempts: attempts.filter(attempt => attempt.quizId === doc.id),
+        bestScore: Math.max(0, ...attempts.filter(attempt => attempt.quizId === doc.id).map(attempt => attempt.score || 0)),
         difficulty: doc.data().difficulty || 'medium',
         questions: doc.data().questions || [],
         course: doc.data().course || 'Cours non spécifié',
@@ -203,16 +191,8 @@ const Quizzes = () => {
         return;
       }
       try {
-        // Optimized query: Fetch only quizzes where title or course matches (not supported by Firestore directly for text search)
-        // Fallback to client-side filtering for now
-        const quizzesQuery = query(
-          collection(db, 'quizzes'),
-          where('status', '==', 'active'),
-          orderBy('title.fr'),
-          limit(10) // Increased limit slightly for better suggestions
-        );
-        const querySnapshot = await getDocs(quizzesQuery);
-        const matchingTitles = querySnapshot.docs
+        const documents = await getVisibleDocuments('quizzes', user);
+        const matchingTitles = documents
           .filter((doc) => {
             const title = doc.data().title?.[language] || doc.data().title?.fr || '';
             const course = doc.data().course || '';
@@ -229,7 +209,7 @@ const Quizzes = () => {
         toast.error(t.error);
       }
     }, 300),
-    [language, t.error]
+    [language, t.error, user]
   );
 
   const handleRetry = useCallback(async () => {
@@ -425,6 +405,13 @@ const Quizzes = () => {
             {isCompleted ? t.reviewQuiz : t.takeQuiz}
           </NavLink>
         </div>
+        <p className="mt-3 text-xs text-gray-500">{quiz.visibility === 'shared' ? (isRTL ? 'مكتبة مشتركة' : 'Bibliothèque partagée') : (isRTL ? 'اختبار شخصي' : 'Quiz personnel')}</p>
+        {user?.customClaims?.role === 'admin' && <button type="button" className="mt-3 text-sm text-blue-700 underline" onClick={async () => {
+          const shared = quiz.visibility !== 'shared';
+          if (!window.confirm(shared ? (isRTL ? 'إتاحة هذا الاختبار لجميع الطلاب؟' : 'Rendre ce quiz visible par tous les étudiants ?') : (isRTL ? 'إرجاع هذا الاختبار إلى صاحبه فقط؟' : 'Réserver ce quiz à son créateur ?'))) return;
+          try { await updateDoc(doc(db, 'quizzes', quiz.id), { visibility: shared ? 'shared' : 'private' }); await fetchQuizzes(); }
+          catch { toast.error(t.error); }
+        }}>{quiz.visibility === 'shared' ? (isRTL ? 'جعله شخصياً' : 'Rendre personnel') : (isRTL ? 'نشر في المكتبة' : 'Publier dans la bibliothèque')}</button>}
       </div>
     );
   };

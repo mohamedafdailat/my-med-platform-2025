@@ -42,6 +42,14 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
+// Connect before persistence starts Firestore. Fail startup if explicitly
+// requested emulators cannot be configured, rather than using cloud services.
+if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_EMULATORS === 'true') {
+  connectAuthEmulator(auth, `http://127.0.0.1:${process.env.REACT_APP_AUTH_EMULATOR_PORT || 9099}`, { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', Number(process.env.REACT_APP_FIRESTORE_EMULATOR_PORT || 8080));
+  connectStorageEmulator(storage, '127.0.0.1', Number(process.env.REACT_APP_STORAGE_EMULATOR_PORT || 9199));
+}
+
 let analytics = null;
 
 isSupported()
@@ -205,17 +213,6 @@ export const handleFirestoreError = (error, context = '') => {
       return "Une erreur inattendue s'est produite.";
   }
 };
-
-if (process.env.NODE_ENV === 'development' && process.env.REACT_APP_USE_EMULATORS === 'true') {
-  try {
-    connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-    connectFirestoreEmulator(db, 'localhost', 8080);
-    connectStorageEmulator(storage, 'localhost', 9199);
-    console.log('Connected to Firebase emulators');
-  } catch (error) {
-    console.warn('Failed to connect to Firebase emulators:', error);
-  }
-}
 
 export { analytics };
 export default app;

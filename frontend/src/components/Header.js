@@ -39,9 +39,7 @@ const Header = () => {
 
   const isAdmin = useCallback((currentUser) => {
     return (
-      currentUser?.role === 'admin' ||
-      currentUser?.customClaims?.role === 'admin' ||
-      currentUser?.email === 'admin_1@medplatform.com'
+      currentUser?.customClaims?.role === 'admin'
     );
   }, []);
 
@@ -53,7 +51,7 @@ const Header = () => {
       user?.customClaims?.role === 'student' ||
       (!user?.role && !user?.customClaims?.role);
 
-    return isStudent && user.subscriptionStatus === 'paid';
+    return user.customClaims?.unlimitedAccess === true || (isStudent && user.subscriptionStatus === 'paid');
   }, [authLoading, user]);
 
   const navigationItems = useMemo(
@@ -63,7 +61,7 @@ const Header = () => {
       { path: '/quizzes', icon: BookOpen, labelFr: 'Quiz', labelAr: 'الاختبارات', requiresPaid: true },
       { path: '/courses', icon: BookOpen, labelFr: 'Cours', labelAr: 'الدورات', requiresPaid: true },
       { path: '/flashcards', icon: CreditCard, labelFr: 'Flashcards', labelAr: 'البطاقات التعليمية', requiresPaid: true },
-      { path: '/dashboard', icon: BarChart3, labelFr: 'Tableau de bord', labelAr: 'لوحة de القيادة', requiresPaid: true },
+      { path: '/dashboard', icon: BarChart3, labelFr: 'Tableau de bord', labelAr: 'لوحة التحكم', requiresPaid: false },
     ],
     []
   );
@@ -135,22 +133,11 @@ const Header = () => {
   }, [isLoggingOut, logout, navigate, language]);
 
   const handleNavClick = useCallback(
-    (event, isAccessible, isAdminUser) => {
-      if (!isAccessible) {
-        event.preventDefault();
-
-        if (!isAdminUser) {
-          alert(language === 'fr' ? 'Un abonnement payant est requis.' : 'مطلوب اشتراك مدفوع.');
-          navigate('/subscription');
-        }
-
-        return;
-      }
-
+    () => {
       setIsMenuOpen(false);
       setIsUserMenuOpen(false);
     },
-    [navigate, language]
+    []
   );
 
   const handleKeyDown = useCallback((event, action) => {
@@ -174,11 +161,11 @@ const Header = () => {
     return (
       <NavLink
         key={item.path}
-        to={isAccessible ? item.path : '/subscription'}
+        to={item.path}
         className={({ isActive }) =>
           `${baseClass} ${
             isActive && isAccessible ? 'bg-blue-100 text-blue-700 shadow-sm' : ''
-          } ${!isAccessible ? 'opacity-60 cursor-not-allowed' : ''}`
+          }`
         }
         onClick={(event) => handleNavClick(event, isAccessible, isAdminUser)}
         aria-label={label}
@@ -203,11 +190,11 @@ const Header = () => {
     return (
       <NavLink
         key={item.path}
-        to={isAccessible ? item.path : '/subscription'}
+        to={item.path}
         className={({ isActive }) =>
           `${baseClass} ${
             isActive && isAccessible ? 'bg-blue-50 text-blue-700' : ''
-          } ${!isAccessible ? 'opacity-60 cursor-not-allowed' : ''}`
+          }`
         }
         onClick={(event) => handleNavClick(event, isAccessible, isAdminUser)}
         aria-label={label}
@@ -273,18 +260,18 @@ const Header = () => {
                       <User className="w-4 h-4 text-white" aria-hidden="true" />
                     </div>
 
-                    <span className="max-w-28 truncate font-medium">
+                    <span className="hidden sm:inline max-w-28 truncate font-medium">
                       {user.displayName || user.email}
                     </span>
 
                     {isAdmin(user) && (
-                      <span className="ml-1 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
+                      <span className="hidden lg:inline ml-1 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
                         Admin
                       </span>
                     )}
 
                     {(user.role || user.semester) && (
-                      <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                      <span className="hidden lg:inline ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
                         {user.role === 'student'
                           ? language === 'fr'
                             ? 'Étudiant'

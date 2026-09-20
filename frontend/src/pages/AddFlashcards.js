@@ -245,6 +245,8 @@ const AddFlashcards = () => {
         tags: tagsArray,
         language,
         createdBy: user.uid,
+        ownerId: user.uid,
+        visibility: 'shared',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         source: 'admin-manual',

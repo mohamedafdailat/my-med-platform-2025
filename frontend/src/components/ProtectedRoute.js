@@ -2,7 +2,7 @@
 // Version améliorée du composant ProtectedRoute avec gestion d'erreurs
 
 import React, { useMemo } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { usePayment } from '../contexts/PaymentContext';
@@ -124,14 +124,13 @@ const SubscriptionRequiredError = ({ language, onSubscribe }) => {
 const ProtectedRoute = ({ children, requiredRole, isPaidRequired, featureName }) => {
   const { user, loading } = useAuth();
   const { language } = useLanguage();
-  const { checkFeatureAccess, setError } = usePayment();
+  const { checkFeatureAccess } = usePayment();
+  const location = useLocation();
 
   const userRoleCheck = useMemo(() => {
     if (!user) return { isAdmin: false, isStudent: false };
 
-    const isAdmin = user?.role === 'admin' ||
-      user?.customClaims?.role === 'admin' ||
-      user?.email === 'admin_1@medplatform.com';
+    const isAdmin = user?.customClaims?.role === 'admin';
 
     const isStudent = user?.role === 'student' ||
       user?.customClaims?.role === 'student' ||
@@ -147,10 +146,11 @@ const ProtectedRoute = ({ children, requiredRole, isPaidRequired, featureName })
 
   // Not authenticated
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: window.location.pathname }} />;
+    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}${location.hash}` }} />;
   }
 
   const { isAdmin, isStudent } = userRoleCheck;
+  const hasUnlimitedAccess = isAdmin || user.customClaims?.unlimitedAccess === true;
 
   // Check role requirements
   if (requiredRole) {
@@ -164,10 +164,7 @@ const ProtectedRoute = ({ children, requiredRole, isPaidRequired, featureName })
   }
 
   // Check subscription requirements with enhanced error handling
-  if (isPaidRequired && !isAdmin && user.subscriptionStatus !== 'paid') {
-    // Enregistrer l'erreur dans le contexte
-    setError('SUBSCRIPTION_REQUIRED', null, language);
-
+  if (isPaidRequired && !hasUnlimitedAccess && user.subscriptionStatus !== 'paid') {
     // Afficher l'interface d'erreur d'abonnement
     return (
       <SubscriptionRequiredError 
@@ -178,7 +175,7 @@ const ProtectedRoute = ({ children, requiredRole, isPaidRequired, featureName })
   }
 
   // Check specific feature access (pour un contrôle plus granulaire)
-  if (featureName && !isAdmin) {
+  if (featureName && !hasUnlimitedAccess) {
     const hasAccess = checkFeatureAccess(featureName, user.subscriptionStatus);
     if (!hasAccess) {
       return (
@@ -200,7 +197,7 @@ export const PaidFeatureWrapper = ({ children, featureName, fallbackComponent = 
   const { checkFeatureAccess } = usePayment();
 
   // Admin bypass
-  if (user?.role === 'admin' || user?.customClaims?.role === 'admin') {
+  if (user?.customClaims?.role === 'admin' || user?.customClaims?.unlimitedAccess === true) {
     return children;
   }
 

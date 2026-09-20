@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const UserProfile = () => {
   const { id } = useParams();
   const { language } = useLanguage();
+  const { user: currentUser } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,7 +42,7 @@ const UserProfile = () => {
           <li key={key}>{language === 'fr' ? key : key === 'coursesCompleted' ? 'دورات مكتملة' : key}: {value}</li>
         ))}
       </ul>
-      <NavLink to="/users" className="btn-primary mt-4">
+      <NavLink to={currentUser?.role === 'admin' ? '/admin/users' : '/profile'} className="btn-primary mt-4">
         {language === 'fr' ? 'Retour aux utilisateurs' : 'العودة إلى المستخدمين'}
       </NavLink>
     </div>
