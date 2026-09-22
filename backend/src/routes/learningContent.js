@@ -1,4 +1,5 @@
 import express from 'express';
+import { getContentAccess, canReadPersonalContent } from './contentAccess.js';
 
 export const createLearningContentRouter = ({ auth, db, authenticate }) => {
   const router = express.Router();
@@ -6,20 +7,18 @@ export const createLearningContentRouter = ({ auth, db, authenticate }) => {
   const handle = (action) => async (req, res, next) => {
     try { await action(req, res); } catch (error) { next(error); }
   };
-  const isAdmin = async (uid) => {
-    const account = await auth.getUser(uid);
-    return !account.disabled && account.customClaims?.role === 'admin';
-  };
-  const canRead = (quiz, uid, administrator) => administrator || quiz.creatorId === uid || quiz.visibility === 'shared';
   const list = async (req, res, onlyOwn = false) => {
     const ref = db.collection('quizzes');
-    const administrator = !onlyOwn && await isAdmin(req.user.uid);
+    const access = await getContentAccess({ auth, db, uid: req.user.uid });
+    const administrator = !onlyOwn && access.administrator;
     const snapshots = administrator ? [await ref.get()] : await Promise.all([
       ref.where('creatorId', '==', req.user.uid).get(),
       ...(onlyOwn ? [] : [ref.where('visibility', '==', 'shared').get()]),
     ]);
     const docs = [...new Map(snapshots.flatMap(s => s.docs).map(d => [d.id, d])).values()];
-    const quizzes = docs.filter(d => d.data().status !== 'inactive' && (!onlyOwn || d.data().type === 'ai-generated')).map(doc => {
+    const quizzes = docs.filter(d => canReadPersonalContent(d.data(), 'creatorId', access)
+      && (access.administrator || d.data().status !== 'inactive')
+      && (!onlyOwn || d.data().type === 'ai-generated')).map(doc => {
       const { attempts, bestScore, ...data } = doc.data();
       return { ...data, id: doc.id };
     });
@@ -33,7 +32,8 @@ export const createLearningContentRouter = ({ auth, db, authenticate }) => {
         typeof category !== 'string' || !Array.isArray(questions) || !questions.length || questions.length > 100) {
       return res.status(400).json({ error: 'Quiz invalide.' });
     }
-    const data = { title, description, category, questions, difficulty, course,
+    const access = await getContentAccess({ auth, db, uid: req.user.uid });
+    const data = { title, description, category, questions, difficulty, course, semester: access.semester,
       creatorId: req.user.uid, visibility: 'private', type: 'ai-generated', status: 'active', createdAt: new Date() };
     const doc = await db.collection('quizzes').add(data);
     return res.status(201).json({ ...data, id: doc.id });
@@ -47,7 +47,10 @@ export const createLearningContentRouter = ({ auth, db, authenticate }) => {
     const snapshot = await ref.get();
     if (!snapshot.exists) return res.status(404).json({ error: 'Quiz introuvable.' });
     const quiz = snapshot.data();
-    if (!canRead(quiz, req.user.uid, await isAdmin(req.user.uid))) return res.status(403).json({ error: 'Accès à ce quiz interdit.' });
+    const access = await getContentAccess({ auth, db, uid: req.user.uid });
+    if (!canReadPersonalContent(quiz, 'creatorId', access) || (!access.administrator && quiz.status === 'inactive')) {
+      return res.status(403).json({ error: 'Accès à ce quiz interdit.' });
+    }
     if (!Array.isArray(quiz.questions) || !quiz.questions.length) return res.status(400).json({ error: 'Ce quiz ne contient aucune question.' });
     const language = req.body.language === 'ar' ? 'ar' : 'fr';
     let correct = 0;

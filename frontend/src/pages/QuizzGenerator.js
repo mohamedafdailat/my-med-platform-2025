@@ -15,6 +15,8 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
+import { getVisibleDocuments } from '../services/contentService';
+import { toDate } from '../utils/dates';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { toast } from 'react-toastify';
@@ -22,11 +24,6 @@ import { db } from '../firebase';
 import {
   collection,
   addDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
 } from 'firebase/firestore';
 import { NavLink } from 'react-router-dom';
 import api from '../services/api';
@@ -391,18 +388,8 @@ const QuizGenerator = () => {
     if (!user) return;
 
     try {
-      const quizzesQuery = query(
-        collection(db, 'quizzes'),
-        where('creatorId', '==', user.uid),
-        where('type', '==', 'ai-generated'),
-        where('status', '==', 'active'),
-        orderBy('createdAt', 'desc'),
-        limit(50)
-      );
-
-      const querySnapshot = await getDocs(quizzesQuery);
-
-      const processedQuizzes = querySnapshot.docs.map((quizDoc) => ({
+      const documents = await getVisibleDocuments('quizzes', user, { onlyOwn: true });
+      const processedQuizzes = documents.filter(document => document.data().type === 'ai-generated' && document.data().status === 'active').map((quizDoc) => ({
         id: quizDoc.id,
         title: quizDoc.data().title || {
           fr: 'Titre non disponible',
@@ -412,10 +399,10 @@ const QuizGenerator = () => {
         category: quizDoc.data().category || 'other',
         difficulty: quizDoc.data().difficulty || 'medium',
         questions: quizDoc.data().questions || [],
-        createdAt: quizDoc.data().createdAt?.toDate() || new Date(),
+        createdAt: toDate(quizDoc.data().createdAt) || new Date(),
       }));
 
-      setSavedQuizzes(processedQuizzes);
+      setSavedQuizzes(processedQuizzes.sort((a, b) => b.createdAt - a.createdAt).slice(0, 50));
     } catch (err) {
       console.error('Erreur lors de la récupération des quiz sauvegardés:', err);
       toast.error(t('error'));
@@ -830,12 +817,11 @@ FORMAT JSON :
         status: 'active',
         creatorId: user.uid,
         visibility: 'private',
+        semester: user.semester ? String(user.semester) : '',
         createdAt: new Date(),
         questions: quizData.questions,
         difficulty: quizData.difficulty,
         course: quizData.course,
-        attempts: [],
-        bestScore: 0,
       };
 
       const docRef = await addDoc(collection(db, 'quizzes'), quizToSave);

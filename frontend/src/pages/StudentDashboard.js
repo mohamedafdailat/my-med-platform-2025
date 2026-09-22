@@ -30,6 +30,7 @@ import {
 
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { getVisibleDocuments } from '../services/contentService';
 import { db } from '../firebase/config';
 import {
   collection,
@@ -39,7 +40,6 @@ import {
   limit,
   orderBy,
   query,
-  where,
 } from 'firebase/firestore';
 
 ChartJS.register(
@@ -367,18 +367,15 @@ const StudentDashboard = () => {
     const fallback = buildFallbackRecommendations();
 
     try {
-      const coursesQuery = query(collection(db, 'courses'), limit(2));
-      const quizzesQuery = query(collection(db, 'quizzes'), where('visibility', '==', 'shared'), limit(2));
-
       const [coursesSnap, quizzesSnap] = await Promise.allSettled([
-        getDocs(coursesQuery),
-        getDocs(quizzesQuery),
+        getVisibleDocuments('courses', user),
+        getVisibleDocuments('quizzes', user),
       ]);
 
       const items = [];
 
       if (coursesSnap.status === 'fulfilled') {
-        coursesSnap.value.docs.forEach((courseDoc) => {
+        coursesSnap.value.filter(document => document.data().status === 'active').slice(0, 2).forEach((courseDoc) => {
           const data = courseDoc.data();
 
           items.push({
@@ -398,7 +395,7 @@ const StudentDashboard = () => {
       }
 
       if (quizzesSnap.status === 'fulfilled') {
-        quizzesSnap.value.docs.forEach((quizDoc) => {
+        quizzesSnap.value.filter(document => document.data().status !== 'inactive').slice(0, 2).forEach((quizDoc) => {
           const data = quizDoc.data();
 
           items.push({
@@ -428,7 +425,7 @@ const StudentDashboard = () => {
     } catch {
       setRecommended(fallback);
     }
-  }, [buildFallbackRecommendations, language]);
+  }, [buildFallbackRecommendations, language, user]);
 
   const fetchDashboardData = useCallback(async () => {
     if (authLoading) return;

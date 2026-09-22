@@ -1,4 +1,5 @@
 import express from 'express';
+import { isSemester } from './contentAccess.js';
 
 const roles = new Set(['student', 'teacher', 'admin', 'user']);
 const statuses = new Set(['unpaid', 'paid', 'free', 'active', 'inactive']);
@@ -35,6 +36,7 @@ export const createUserProfilesRouter = ({ auth, db, authenticate }) => {
     phoneNumber: data.phoneNumber || data.phone || '',
     semester: data.semester || '',
     role: account?.customClaims?.role || 'student',
+    unlimitedAccess: account?.customClaims?.unlimitedAccess === true,
     subscriptionStatus: data.subscriptionStatus || 'unpaid',
     subscription: data.subscription || {},
     createdAt: data.createdAt?.toDate?.().toISOString() || data.createdAt || account?.metadata.creationTime || null,
@@ -76,12 +78,13 @@ export const createUserProfilesRouter = ({ auth, db, authenticate }) => {
 
   router.patch('/:id', requireAdmin, handle(async (req, res) => {
     const payload = req.body;
-    const fields = ['role', 'subscriptionStatus', 'subscription', 'disabled'];
+    const fields = ['role', 'subscriptionStatus', 'subscription', 'disabled', 'semester'];
     if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
         !Object.keys(payload).length || Object.keys(payload).some((key) => !fields.includes(key)) ||
         ('role' in payload && !roles.has(payload.role)) ||
         ('subscriptionStatus' in payload && !statuses.has(payload.subscriptionStatus)) ||
         ('disabled' in payload && typeof payload.disabled !== 'boolean') ||
+        ('semester' in payload && !isSemester(payload.semester)) ||
         ('subscription' in payload && (!payload.subscription ||
           Object.keys(payload.subscription).some((key) => key !== 'type') || !plans.has(payload.subscription.type)))) {
       return res.status(400).json({ error: 'Modification de profil invalide.' });
@@ -91,10 +94,14 @@ export const createUserProfilesRouter = ({ auth, db, authenticate }) => {
     }
     const account = await getAccount(req.params.id);
     if (!account) return res.status(409).json({ error: 'Ce profil ne possède plus de compte de connexion. Une réconciliation est nécessaire.' });
+    if (payload.role === 'admin' && account.customClaims?.role !== 'admin') {
+      return res.status(409).json({ error: 'La plateforme conserve un administrateur unique. La création d’un autre administrateur est désactivée.' });
+    }
     const profileRef = db.collection('users').doc(req.params.id);
     const current = (await profileRef.get()).data() || {};
     const updates = { updatedAt: new Date().toISOString() };
     if (payload.role) updates.role = payload.role;
+    if ('semester' in payload) updates.semester = payload.semester;
     if (payload.subscriptionStatus) updates.subscriptionStatus = payload.subscriptionStatus;
     if (payload.subscription || payload.subscriptionStatus) {
       updates.subscription = {

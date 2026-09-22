@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import SemesterSelect, { validSemester } from '../components/SemesterSelect';
 import { toDate } from '../utils/dates';
 import {
   Users,
@@ -264,7 +265,7 @@ const AdminUsers = () => {
       setSavingUserId(user.id);
 
       const payload = {
-        role: user.role || 'user',
+        ...(validSemester(user.semester) ? { semester: String(user.semester) } : {}),
         subscriptionStatus: getSubscriptionStatus(user),
         subscription: {
           type: getSubscriptionType(user),
@@ -536,23 +537,11 @@ const AdminUsers = () => {
                         </td>
 
                         <td className="whitespace-nowrap px-4 py-4">
-                          <select
-                            value={user.role || 'user'}
-                            disabled={!user.accountExists || user.id === currentUser?.uid}
-                            onChange={(e) =>
-                              handleLocalChange(user.id, 'role', e.target.value)
-                            }
-                            className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                          >
-                            <option value="user">{t.user}</option>
-                            <option value="student">{t.student}</option>
-                            <option value="teacher">{t.teacher}</option>
-                            <option value="admin">{t.admin}</option>
-                          </select>
+                          <span>{user.role === 'admin' ? t.admin : t.student}</span>
                         </td>
 
                         <td className="whitespace-nowrap px-4 py-4 text-gray-700">
-                          {user.semester || t.unknown}
+                          <SemesterSelect id={`user-semester-${user.id}`} value={String(user.semester || '')} onChange={(event) => handleLocalChange(user.id, 'semester', event.target.value)} language={language} disabled={!user.accountExists || savingUserId === user.id} required={false} />
                         </td>
 
                         <td className="whitespace-nowrap px-4 py-4">

@@ -14,7 +14,7 @@ npm ci --prefix tests
 npm test --prefix tests
 ```
 
-Attendre le message `All emulators ready` avant les tests. La suite réinitialise la base de démonstration. Elle couvre les droits des profils, les règles Firestore/Storage, la séparation des contenus, les résultats individuels et les routes Express réellement utilisées en production.
+Attendre le message `All emulators ready` avant les tests. La suite réinitialise la base de démonstration. Les 30 tests couvrent les droits des profils, le verrouillage du semestre, S1/S2/contenu général, l'accès illimité sans accès aux créations privées d'autrui, les règles Firestore/Storage, les anciens jetons révoqués, les résultats individuels et les routes Express. Le routeur média est testé avec des services simulés : aucun fichier réel ni clé privée.
 
 Dans deux terminaux distincts :
 

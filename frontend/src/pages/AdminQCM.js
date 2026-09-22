@@ -1,5 +1,6 @@
 // C:\my-med-platform\frontend\src\pages\AdminQCM.js
 
+import SemesterSelect, { validContentSemester } from '../components/SemesterSelect';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../firebase/config';
@@ -45,6 +46,7 @@ const emptyQCM = {
   title: { fr: '', ar: '' },
   description: { fr: '', ar: '' },
   videoId: '',
+  semester: '',
   questions: [],
   timeLimit: 30,
   passingScore: 60,
@@ -495,6 +497,7 @@ const AdminQCM = () => {
       !titleFr ||
       !titleAr ||
       !newQCM.videoId ||
+      !validContentSemester(newQCM.semester) ||
       newQCM.questions.length === 0
     ) {
       showMessage('error', t.errors.required);
@@ -516,6 +519,8 @@ const AdminQCM = () => {
           ar: newQCM.description.ar.trim(),
         },
         videoId: newQCM.videoId,
+        visibility: 'shared',
+        semester: newQCM.semester,
         questions: newQCM.questions,
         timeLimit: Number(newQCM.timeLimit) || 30,
         passingScore: Number(newQCM.passingScore) || 60,
@@ -561,6 +566,7 @@ const AdminQCM = () => {
       title: qcm.title || { fr: '', ar: '' },
       description: qcm.description || { fr: '', ar: '' },
       videoId: qcm.videoId || '',
+      semester: String(qcm.semester || ''),
       questions: qcm.questions || [],
       timeLimit: qcm.timeLimit || 30,
       passingScore: qcm.passingScore || 60,
@@ -697,6 +703,7 @@ const AdminQCM = () => {
             </div>
 
             <form onSubmit={handleCreateOrUpdateQCM} className="space-y-8">
+              <SemesterSelect value={newQCM.semester} onChange={event => setNewQCM(previous => ({ ...previous, semester: event.target.value }))} language={language} allowAll disabled={saving} />
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-700">

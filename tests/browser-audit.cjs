@@ -50,13 +50,13 @@ const syntheticPdf = () => {
     await student.waitForURL('**/profile?tab=personal#info');
     await student.locator('#profile-fullName').fill('Étudiant Navigateur');
     await student.locator('#profile-phoneNumber').fill('0612345678');
-    await student.locator('#profile-semester').selectOption('6');
+    assert.equal(await student.locator('#profile-semester').isDisabled(), true);
     await student.getByRole('button', { name: 'Enregistrer mon profil' }).click();
     await student.getByText('Votre profil a été enregistré.', { exact: true }).waitFor();
     await student.reload();
     await student.locator('#profile-fullName').waitFor();
     assert.equal(await student.locator('#profile-fullName').inputValue(), 'Étudiant Navigateur');
-    assert.equal(await student.locator('#profile-semester').inputValue(), '6');
+    assert.equal(await student.locator('#profile-semester').inputValue(), '1');
     await student.screenshot({ path: path.join(artifacts, 'profile-local.png'), fullPage: true });
     await student.setViewportSize({ width: 390, height: 844 });
     await student.screenshot({ path: path.join(artifacts, 'profile-mobile-local.png'), fullPage: true });
@@ -117,6 +117,15 @@ const syntheticPdf = () => {
       const response = await fetch(`http://127.0.0.1:5180/api/users/${id}`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ subscriptionStatus: 'paid', role: 'student' }) });
       assert.equal(response.status, 200);
     }
+    await student.goto(origin + '/quizzes');
+    await student.getByRole('heading', { name: 'Private API Quiz', exact: true }).waitFor();
+    await student.goto(origin + '/quizzes/api-private');
+    await student.getByRole('button', { name: 'Vrai', exact: true }).click();
+    const submitted = student.waitForResponse(response => response.url().endsWith('/api/quizzes/api-private/attempt') && response.request().method() === 'POST');
+    await student.getByRole('button', { name: 'Terminer le quiz', exact: true }).click();
+    assert.equal((await submitted).status(), 200);
+    await student.getByText('100%', { exact: true }).waitFor();
+    console.log('PASS quiz library, quiz player and individual result submission');
     await student.route('**/api/ai/xai-chat', route => route.fulfill({ json: { choices: [{ message: { content: JSON.stringify({ cards: [{ front: 'Quel organe pompe le sang ?', back: 'Le cœur.' }] }) } }] } }));
     await student.setViewportSize({ width: 1440, height: 1000 });
     await student.goto(origin + '/flashcards');
@@ -137,10 +146,14 @@ const syntheticPdf = () => {
     assert.equal(await secondStudent.getByRole('heading', { name: deckTitle, exact: true }).count(), 0);
     await manager.goto(origin + '/flashcards');
     const deck = manager.locator('article').filter({ has: manager.getByRole('heading', { name: deckTitle, exact: true }) });
+    await deck.locator('select').selectOption('2');
     await deck.getByRole('button', { name: 'Publier dans la bibliothèque' }).click();
     await deck.getByRole('button', { name: 'Rendre personnel' }).waitFor();
     await secondStudent.reload();
     await secondStudent.getByRole('heading', { name: deckTitle, exact: true }).waitFor();
+    await student.reload();
+    await student.getByRole('heading', { name: 'Flashcards médicales', exact: true }).waitFor();
+    assert.equal(await student.getByRole('heading', { name: deckTitle, exact: true }).count(), 0, 'S1 cannot see a deck published for S2');
     await deck.getByRole('button', { name: 'Rendre personnel' }).click();
     await deck.getByRole('button', { name: 'Publier dans la bibliothèque' }).waitFor();
     await secondStudent.reload();

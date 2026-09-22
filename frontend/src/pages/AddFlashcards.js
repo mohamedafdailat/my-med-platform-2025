@@ -1,5 +1,6 @@
 // C:\my-med-platform\frontend\src\pages\AddFlashcards.js
 
+import SemesterSelect, { validContentSemester } from '../components/SemesterSelect';
 import React, { useMemo, useState } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import {
@@ -30,6 +31,7 @@ const AddFlashcards = () => {
   const [formData, setFormData] = useState({
     title: '',
     category: 'anatomy',
+    semester: '',
     difficulty: 'medium',
     question: '',
     answer: '',
@@ -207,6 +209,11 @@ const AddFlashcards = () => {
       return;
     }
 
+    if (!validContentSemester(formData.semester)) {
+      setGlobalMessage({ type: 'error', text: language === 'ar' ? 'اختر الفصل الدراسي للمحتوى.' : 'Choisissez le semestre de cette flashcard.' });
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
@@ -247,6 +254,7 @@ const AddFlashcards = () => {
         createdBy: user.uid,
         ownerId: user.uid,
         visibility: 'shared',
+        semester: formData.semester,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         source: 'admin-manual',
@@ -261,6 +269,7 @@ const AddFlashcards = () => {
       setFormData({
         title: '',
         category: 'anatomy',
+    semester: '',
         difficulty: 'medium',
         question: '',
         answer: '',
@@ -348,6 +357,7 @@ const AddFlashcards = () => {
               onSubmit={handleSubmit}
               className="rounded-3xl border border-gray-100 bg-white p-6 shadow-lg md:p-8"
             >
+              <SemesterSelect value={formData.semester} onChange={handleChange} language={language} allowAll disabled={loading} />
               <div className="mb-6 flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
                   <PlusCircle className="h-6 w-6" />

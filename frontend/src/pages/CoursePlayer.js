@@ -2,18 +2,18 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../firebase/config';
+import { useAuth } from '../contexts/AuthContext';
+import { getVisibleDocuments } from '../services/contentService';
+import { resolveMediaUrl, isProtectedMedia } from '../services/mediaService';
 import {
   doc,
   getDoc,
-  collection,
-  getDocs,
-  query,
-  where,
 } from 'firebase/firestore';
 
 const CoursePlayer = () => {
   const { id } = useParams();
   const { language } = useLanguage();
+  const { user } = useAuth();
 
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -100,9 +100,9 @@ const CoursePlayer = () => {
               ? `Module ${index + 1}`
               : `الوحدة ${index + 1}`
           ),
-          content: getLocalizedText(module.content || module.description, ''),
-          pdfUrl: module.pdfUrl || module.fileUrl || null,
-          videoUrl: module.videoUrl || module.youtubeUrl || null,
+          content: getLocalizedText(module.content || module.description || (module.fr || module.ar ? module : null), ''),
+          pdfUrl: isProtectedMedia(module.pdfUrl || module.fileUrl) ? null : module.pdfUrl || module.fileUrl || null,
+          videoUrl: isProtectedMedia(module.videoUrl || module.youtubeUrl) ? null : module.videoUrl || module.youtubeUrl || null,
         };
       });
     },
@@ -112,20 +112,13 @@ const CoursePlayer = () => {
   const fetchRelatedCourses = useCallback(
     async (category, currentCourseId) => {
       try {
-        const querySnapshot = await getDocs(
-          query(
-            collection(db, 'courses'),
-            where('category', '==', category),
-            where('status', '==', 'active')
-          )
-        );
-
-        const courses = querySnapshot.docs
+        const documents = await getVisibleDocuments('courses', user);
+        const courses = documents
           .map((docSnap) => ({
             id: docSnap.id,
             ...docSnap.data(),
           }))
-          .filter((relatedCourse) => relatedCourse.id !== currentCourseId)
+          .filter((relatedCourse) => relatedCourse.id !== currentCourseId && relatedCourse.category === category && relatedCourse.status !== 'inactive')
           .slice(0, 3);
 
         setRelatedCourses(courses);
@@ -133,7 +126,7 @@ const CoursePlayer = () => {
         console.error('Error fetching related courses:', err);
       }
     },
-    []
+    [user]
   );
 
   useEffect(() => {
@@ -158,7 +151,7 @@ const CoursePlayer = () => {
           ...courseDoc.data(),
         };
 
-        if (courseData.status !== 'active') {
+        if (courseData.status === 'inactive' && user.customClaims?.role !== 'admin') {
           setError(
             language === 'fr'
               ? 'Cours non actif.'
@@ -167,6 +160,7 @@ const CoursePlayer = () => {
           return;
         }
 
+        courseData.pdfUrl = await resolveMediaUrl('courses', id, courseData.pdfUrl, courseData.pdfStoragePath || courseData.filePath);
         setCourse(courseData);
         setSelectedModule(0);
         setCompletedModules([]);

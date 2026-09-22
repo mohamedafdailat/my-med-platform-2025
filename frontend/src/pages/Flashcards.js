@@ -1,3 +1,4 @@
+import ContentPublication from '../components/ContentPublication';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -475,11 +476,7 @@ const Flashcards = () => {
 
           if (cards.length === 0) return null;
 
-          const semester = data.semester || user?.semester || null;
-
-          if (data.visibility === 'shared' && !isAdmin(user) && semester && user?.semester && user.semester !== semester) {
-            return null;
-          }
+          const semester = data.semester || null;
 
           const category = data.category || cards[0]?.category || 'general';
 
@@ -517,7 +514,6 @@ const Flashcards = () => {
     user,
     getDeckCards,
     getFirestoreDate,
-    isAdmin,
     removeDuplicateDecks,
     t,
     normalizeText,
@@ -922,12 +918,7 @@ const Flashcards = () => {
               </button>
             )}
           </div>
-          {deck.type === 'custom' && isAdmin(user) && <button type="button" className="mt-3 text-sm text-blue-700 underline" onClick={async () => {
-            const shared = deck.visibility !== 'shared';
-            if (!window.confirm(shared ? (language === 'fr' ? 'Rendre ces flashcards visibles par tous les étudiants ?' : 'إتاحة هذه البطاقات لجميع الطلاب؟') : (language === 'fr' ? 'Réserver ces flashcards à leur créateur ?' : 'إرجاع هذه البطاقات إلى صاحبها فقط؟'))) return;
-            try { await updateDoc(doc(db, 'flashcards', deck.id), { visibility: shared ? 'shared' : 'private' }); await fetchCustomDecks(); }
-            catch { setError(t('loadError')); }
-          }}>{deck.visibility === 'shared' ? (language === 'fr' ? 'Rendre personnel' : 'جعله شخصياً') : (language === 'fr' ? 'Publier dans la bibliothèque' : 'نشر في المكتبة')}</button>}
+          {deck.type === 'custom' && isAdmin(user) && <ContentPublication collectionName="flashcards" item={deck} language={language} onUpdated={fetchCustomDecks} />}
         </div>
       </article>
     );

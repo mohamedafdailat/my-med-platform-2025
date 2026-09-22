@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useLanguage } from '../contexts/LanguageContext';
 import Card from '../components/Card';
 import { NavLink } from 'react-router-dom';
-import { db } from '../firebase/config';
-import { collection, getDocs } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
+import { getVisibleDocuments } from '../services/contentService';
 import PlaceholderImage from '../components/PlaceholderImage';
 
 const Courses = () => {
   const { language } = useLanguage();
+  const { user } = useAuth();
 
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,14 +28,14 @@ const Courses = () => {
         setLoading(true);
         setError('');
 
-        const querySnapshot = await getDocs(collection(db, 'courses'));
+        const documents = await getVisibleDocuments('courses', user);
 
-        const coursesList = querySnapshot.docs
+        const coursesList = documents
           .map((docSnap) => ({
             id: docSnap.id,
             ...docSnap.data(),
           }))
-          .filter((course) => course.status === 'active');
+          .filter((course) => course.status !== 'inactive' || user.customClaims?.role === 'admin');
 
         setCourses(coursesList);
       } catch (err) {
@@ -50,7 +51,7 @@ const Courses = () => {
     };
 
     fetchCourses();
-  }, [language]);
+  }, [language, user]);
 
   const categories = useMemo(
     () => [

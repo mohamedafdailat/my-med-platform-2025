@@ -5,11 +5,8 @@ import { db } from '../firebase';
 import {
   doc,
   getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
 } from 'firebase/firestore';
+import { resolveMediaUrl } from '../services/mediaService';
 import { useAuth } from '../contexts/AuthContext';
 import { getVisibleDocuments } from '../services/contentService';
 import FlashcardGenerator from './FlashcardGenerator';
@@ -244,7 +241,7 @@ const VideoPlayer = () => {
 
       const data = docSnap.data();
 
-      const rawVideoUrl = data.videoUrl || data.youtubeLink || data.url || '';
+      const rawVideoUrl = await resolveMediaUrl('videos', id, data.videoUrl || data.youtubeLink || data.url || (data.youtubeId ? `https://www.youtube.com/watch?v=${data.youtubeId}` : ''), data.storagePath || data.filePath);
 
       if (!rawVideoUrl) {
         setError(t('noVideoLink'));
@@ -305,10 +302,8 @@ const VideoPlayer = () => {
       setCurrentFlashcard(0);
       setShowAnswer(false);
 
-      const qcmsQuery = query(collection(db, 'qcms'), where('videoId', '==', id));
-      const qcmsSnapshot = await getDocs(qcmsQuery);
-
-      const qcmsData = qcmsSnapshot.docs.map((qcmDoc) => {
+      const qcmDocuments = await getVisibleDocuments('qcms', user);
+      const qcmsData = qcmDocuments.filter(document => document.data().videoId === id && document.data().status !== 'inactive').map((qcmDoc) => {
         const qcm = qcmDoc.data();
 
         return {
@@ -345,7 +340,7 @@ const VideoPlayer = () => {
       const shareUrl =
         video.type === 'youtube' && video.youtubeId
           ? `https://www.youtube.com/watch?v=${video.youtubeId}`
-          : video.videoUrl;
+          : `${window.location.origin}/videos/${id}`;
 
       const shareTitle = getLocalizedText(video.title, language);
       const shareDescription = getLocalizedText(video.description, language);
@@ -363,7 +358,7 @@ const VideoPlayer = () => {
     } catch (shareError) {
       console.error('Erreur lors du partage:', shareError);
     }
-  }, [video, language]);
+  }, [video, language, id]);
 
   const nextFlashcard = useCallback(() => {
     if (flashcards.length === 0) return;

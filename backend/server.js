@@ -1,5 +1,7 @@
 import express from 'express';
 import { createLearningContentRouter } from './src/routes/learningContent.js';
+import { createMediaAccessRouter } from './src/routes/mediaAccess.js';
+import { canReadSemester, getContentAccess, isContentSemester } from './src/routes/contentAccess.js';
 import admin from 'firebase-admin';
 import cors from 'cors';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -27,7 +29,7 @@ const parseServiceAccount = (rawValue, source) => {
     return JSON.parse(rawValue);
   } catch (error) {
     throw new Error(
-      `Invalid Firebase service account JSON from ${source}: ${error.message}`
+      `Invalid Firebase service account JSON from ${source}`
     );
   }
 };
@@ -171,6 +173,8 @@ app.use(
           'https://accounts.google.com',
           'https://www.youtube.com',
           'https://www.youtube-nocookie.com',
+          'https://storage.googleapis.com',
+          'https://firebasestorage.googleapis.com',
         ],
 
         imgSrc: [
@@ -284,7 +288,7 @@ const authenticate = async (req, res, next) => {
     req.user = decodedToken;
     return next();
   } catch (error) {
-    console.error("Erreur d'authentification:", error);
+    console.error('Authentication rejected:', error.code || 'auth/invalid-token');
     return res.status(401).json({ error: 'Token invalide' });
   }
 };
@@ -294,6 +298,9 @@ const authenticate = async (req, res, next) => {
 ========================================================= */
 
 app.use('/api/users', createUserProfilesRouter({ auth: admin.auth(), db, authenticate }));
+app.use('/api', createMediaAccessRouter({ auth: admin.auth(), db, authenticate,
+  bucket: admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET || `${serviceAccount.project_id}.firebasestorage.app`),
+}));
 const requireAdmin = createRequireAdmin(admin.auth());
 
 const getXaiApiKey = () => process.env.XAI_API_KEY || process.env.XAI_API_KEY_2;
@@ -535,8 +542,9 @@ app.use('/api/quizzes', createLearningContentRouter({ auth: admin.auth(), db, au
 
 app.get('/api/videos', authenticate, async (req, res) => {
   try {
+    const contentAccess = await getContentAccess({ auth: admin.auth(), db, uid: req.user.uid });
     const snapshot = await db.collection('videos').get();
-    const videos = snapshot.docs.map((docSnap) => ({
+    const videos = snapshot.docs.filter(docSnap => canReadSemester(docSnap.data(), contentAccess)).map((docSnap) => ({
       id: docSnap.id,
       ...docSnap.data(),
     }));
@@ -555,6 +563,7 @@ app.post(
   [
     body('title').notEmpty().withMessage('Le titre est requis'),
     body('youtubeLink').notEmpty().withMessage('Le lien YouTube est requis'),
+    body('semester').custom(isContentSemester).withMessage('Choisissez un semestre de 1 à 12 ou all'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -564,7 +573,7 @@ app.post(
     }
 
     try {
-      const { title, description, youtubeLink } = req.body;
+      const { title, description, youtubeLink, semester } = req.body;
 
       const videoIdMatch =
         youtubeLink.match(/[?&]v=([^&]+)/) ||
@@ -578,6 +587,7 @@ app.post(
       }
 
       const videoData = {
+        semester,
         title,
         description: description || '',
         youtubeId,
@@ -607,8 +617,9 @@ app.post(
 
 app.get('/api/courses', authenticate, async (req, res) => {
   try {
+    const contentAccess = await getContentAccess({ auth: admin.auth(), db, uid: req.user.uid });
     const snapshot = await db.collection('courses').get();
-    const courses = snapshot.docs.map((docSnap) => ({
+    const courses = snapshot.docs.filter(docSnap => canReadSemester(docSnap.data(), contentAccess)).map((docSnap) => ({
       id: docSnap.id,
       ...docSnap.data(),
     }));
@@ -627,6 +638,7 @@ app.post(
   [
     body('title').notEmpty().withMessage('Le titre est requis'),
     body('category').notEmpty().withMessage('La catégorie est requise'),
+    body('semester').custom(isContentSemester).withMessage('Choisissez un semestre de 1 à 12 ou all'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -636,9 +648,10 @@ app.post(
     }
 
     try {
-      const { title, description, lessons, category } = req.body;
+      const { title, description, lessons, category, semester } = req.body;
 
       const courseData = {
+        semester,
         title,
         description: description || '',
         lessons: lessons || [],

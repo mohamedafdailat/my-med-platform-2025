@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
-import { db } from '../firebase';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
+import { getVisibleDocuments } from '../services/contentService';
+import { toDate } from '../utils/dates';
 import debounce from 'lodash/debounce';
 
 const Videos = () => {
   const { language } = useLanguage();
+  const { user } = useAuth();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -100,10 +102,9 @@ const Videos = () => {
     setLoading(true);
     setError(null);
     try {
-      const videosQuery = query(collection(db, 'videos'), orderBy('uploadedAt', 'desc'), limit(50));
-      const querySnapshot = await getDocs(videosQuery);
-      const processedVideos = querySnapshot.docs
-        .filter((doc) => doc.data().status === 'active')
+      const documents = await getVisibleDocuments('videos', user);
+      const processedVideos = documents
+        .filter((doc) => doc.data().status !== 'inactive')
         .map((doc) => {
           const data = doc.data();
           const category = data.category === 'médecine_générale' || data.category === 'pharmacie' ? 'other' : data.category || 'other';
@@ -118,28 +119,30 @@ const Videos = () => {
             fileType: data.fileType || '',
             category,
           };
-          if (data.videoUrl && isYouTubeUrl(data.videoUrl)) {
-            const youtubeId = extractYouTubeId(data.videoUrl);
+          const source = data.videoUrl || data.youtubeLink || data.url || '';
+          if (data.youtubeId || (source && isYouTubeUrl(source))) {
+            const youtubeId = data.youtubeId || extractYouTubeId(source);
             if (youtubeId) {
               return {
                 ...videoData,
                 youtubeId,
-                videoUrl: data.videoUrl,
+                videoUrl: source || `https://www.youtube.com/watch?v=${youtubeId}`,
                 thumbnail: `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`,
                 type: 'youtube',
               };
             }
-          } else if (data.videoUrl) {
+          } else if (source || data.storagePath || data.filePath) {
             return {
               ...videoData,
-              videoUrl: data.videoUrl,
+              videoUrl: source,
               thumbnail: null,
               type: 'uploaded',
             };
           }
           return null;
         })
-        .filter((video) => video !== null);
+        .filter((video) => video !== null)
+        .sort((a, b) => (toDate(b.uploadedAt)?.getTime() || 0) - (toDate(a.uploadedAt)?.getTime() || 0));
       setVideos(processedVideos);
       setRetryCount(0);
     } catch (err) {
@@ -156,7 +159,7 @@ const Videos = () => {
       setLoading(false);
       setIsRetrying(false);
     }
-  }, [t.error, extractYouTubeId, isYouTubeUrl]);
+  }, [t.error, extractYouTubeId, isYouTubeUrl, user]);
 
   const fetchSuggestions = useCallback(
     debounce(async (term) => {
@@ -165,21 +168,19 @@ const Videos = () => {
         return;
       }
       try {
-        const videosQuery = query(collection(db, 'videos'), orderBy('title.fr'), limit(5));
-        const querySnapshot = await getDocs(videosQuery);
-        const matchingTitles = querySnapshot.docs
-          .filter((doc) => {
-            const title = doc.data().title?.[language] || doc.data().title?.fr || '';
+        const matchingTitles = videos
+          .filter((video) => {
+            const title = video.title?.[language] || video.title?.fr || '';
             return title.toLowerCase().includes(term.toLowerCase());
           })
-          .map((doc) => doc.data().title?.[language] || doc.data().title?.fr)
+          .map((video) => video.title?.[language] || video.title?.fr)
           .slice(0, 5);
         setSuggestions(matchingTitles);
       } catch (err) {
         console.error('Erreur lors de la récupération des suggestions:', err);
       }
     }, 300),
-    [language]
+    [language, videos]
   );
 
   const handleRetry = useCallback(async () => {

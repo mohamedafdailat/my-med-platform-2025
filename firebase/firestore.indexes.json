@@ -1,0 +1,9 @@
+{
+  "indexes": [
+    { "collectionGroup": "quizzes", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "creatorId", "order": "ASCENDING" }, { "fieldPath": "visibility", "order": "ASCENDING" }] },
+    { "collectionGroup": "quizzes", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "semester", "order": "ASCENDING" }] },
+    { "collectionGroup": "flashcards", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "ownerId", "order": "ASCENDING" }, { "fieldPath": "visibility", "order": "ASCENDING" }] },
+    { "collectionGroup": "flashcards", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "semester", "order": "ASCENDING" }] }
+  ],
+  "fieldOverrides": []
+}

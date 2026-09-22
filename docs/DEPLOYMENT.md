@@ -138,10 +138,12 @@ Then test:
 
 ## 8. Rollback
 
-Use Railway deployment history to roll back to the previous successful deployment.
+Use Railway deployment history to roll back the application to a compatible successful deployment. A code rollback does not restore Firestore data, Auth accounts, Storage metadata, or Firebase rules. After the access migration, do not restore the old broad read rules merely to make an old frontend work; use the encrypted migration backup and a coordinated recovery.
 
 ## 9. Profile and content access changes
 
-The candidate implementation on `improvement/production-audit-profiles` introduces private generated content, server-managed account roles and individual quiz results. Its data model and coordinated migration requirements are documented in [CONTENT_ACCESS.md](CONTENT_ACCESS.md). Local verification is documented in [tests/README.md](../tests/README.md).
+The access implementation introduces private generated content, a single administrator, locked student semesters, individual quiz results and short-lived media links. Its data model and coordinated migration requirements are documented in [CONTENT_ACCESS.md](CONTENT_ACCESS.md). Local verification is documented in [tests/README.md](../tests/README.md).
 
-Do not merge this candidate into the Railway-connected branch before the account retention list and legacy content migration are ready. The Firebase rules and existing data need a coordinated rollout with the application. `firebase.local.json` is only for the isolated demo emulators.
+The Firebase rules and existing data need a coordinated rollout with the application. Prepare the account retention list and encrypted backup before deploying. `firebase.local.json` is only for the isolated demo emulators; `firebase.production.json` references the production rule sources and query index definitions. Always specify the intended Firebase project explicitly. The required list queries must be checked against the live indexes before activation.
+
+The retained admin needs both `role: admin` and `adminAccessVersion: 1` claims. The test student's unlimited entitlement is a server claim, never a browser-editable profile field. On initial authentication the app refreshes claims; users should reconnect after an access migration. Semester changes do not require changing a password.

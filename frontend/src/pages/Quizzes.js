@@ -1,11 +1,10 @@
+import ContentPublication from '../components/ContentPublication';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getVisibleDocuments, getOwnQuizAttempts } from '../services/contentService';
 import { toDate } from '../utils/dates';
-import { db } from '../firebase/config';
-import { doc, updateDoc } from 'firebase/firestore';
 import debounce from 'lodash/debounce';
 import { toast } from 'react-toastify';
 
@@ -155,6 +154,7 @@ const Quizzes = () => {
         type: doc.data().type || 'predefined',
         creatorId: doc.data().creatorId || 'anonymous',
         visibility: doc.data().visibility || 'private',
+        semester: doc.data().semester || '',
         createdAt: toDate(doc.data().createdAt) || new Date(0),
         attempts: attempts.filter(attempt => attempt.quizId === doc.id),
         bestScore: Math.max(0, ...attempts.filter(attempt => attempt.quizId === doc.id).map(attempt => attempt.score || 0)),
@@ -406,12 +406,7 @@ const Quizzes = () => {
           </NavLink>
         </div>
         <p className="mt-3 text-xs text-gray-500">{quiz.visibility === 'shared' ? (isRTL ? 'مكتبة مشتركة' : 'Bibliothèque partagée') : (isRTL ? 'اختبار شخصي' : 'Quiz personnel')}</p>
-        {user?.customClaims?.role === 'admin' && <button type="button" className="mt-3 text-sm text-blue-700 underline" onClick={async () => {
-          const shared = quiz.visibility !== 'shared';
-          if (!window.confirm(shared ? (isRTL ? 'إتاحة هذا الاختبار لجميع الطلاب؟' : 'Rendre ce quiz visible par tous les étudiants ?') : (isRTL ? 'إرجاع هذا الاختبار إلى صاحبه فقط؟' : 'Réserver ce quiz à son créateur ?'))) return;
-          try { await updateDoc(doc(db, 'quizzes', quiz.id), { visibility: shared ? 'shared' : 'private' }); await fetchQuizzes(); }
-          catch { toast.error(t.error); }
-        }}>{quiz.visibility === 'shared' ? (isRTL ? 'جعله شخصياً' : 'Rendre personnel') : (isRTL ? 'نشر في المكتبة' : 'Publier dans la bibliothèque')}</button>}
+        {user?.customClaims?.role === 'admin' && <ContentPublication collectionName="quizzes" item={quiz} language={language} onUpdated={fetchQuizzes} />}
       </div>
     );
   };

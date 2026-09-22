@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(true);
       }
       try {
-        const { claims } = await firebaseUser.getIdTokenResult();
+        const { claims } = await firebaseUser.getIdTokenResult(accountChanged);
         if (version !== currentVersion) return;
         const updateUser = (data = {}, error = null) => {
           if (version !== currentVersion) return;

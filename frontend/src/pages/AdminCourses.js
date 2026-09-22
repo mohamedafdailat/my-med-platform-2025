@@ -1,5 +1,7 @@
 // C:\my-med-platform\frontend\src\pages\AdminCourses.js
 
+import SemesterSelect, { validContentSemester } from '../components/SemesterSelect';
+import ContentSemesterEditor from '../components/ContentSemesterEditor';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
@@ -23,13 +25,10 @@ import {
   deleteDoc,
   doc,
   serverTimestamp,
-  query,
-  orderBy,
 } from 'firebase/firestore';
 import {
   ref,
   uploadBytesResumable,
-  getDownloadURL,
   deleteObject,
 } from 'firebase/storage';
 
@@ -45,6 +44,7 @@ const AdminCourses = () => {
     title: { fr: '', ar: '' },
     description: { fr: '', ar: '' },
     category: 'anatomy',
+    semester: '',
     difficulty: 'beginner',
     estimatedDuration: '',
     pdfFile: null,
@@ -210,6 +210,7 @@ const AdminCourses = () => {
       title: { fr: '', ar: '' },
       description: { fr: '', ar: '' },
       category: 'anatomy',
+    semester: '',
       difficulty: 'beginner',
       estimatedDuration: '',
       pdfFile: null,
@@ -229,17 +230,8 @@ const AdminCourses = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      let snapshot;
-
-      try {
-        const coursesQuery = query(
-          collection(db, 'courses'),
-          orderBy('createdAt', 'desc')
-        );
-        snapshot = await getDocs(coursesQuery);
-      } catch {
-        snapshot = await getDocs(collection(db, 'courses'));
-      }
+      // Include legacy courses without createdAt so the admin can classify them.
+      const snapshot = await getDocs(collection(db, 'courses'));
 
       const coursesList = snapshot.docs.map((courseDoc) => ({
         id: courseDoc.id,
@@ -261,6 +253,10 @@ const AdminCourses = () => {
   }, [language]);
 
   const validateForm = () => {
+    if (!validContentSemester(newCourse.semester)) {
+      showMessage('error', language === 'ar' ? 'اختر الفصل الدراسي للمحتوى.' : 'Choisissez le semestre de ce cours.');
+      return false;
+    }
     const titleFr = newCourse.title.fr.trim();
     const titleAr = newCourse.title.ar.trim();
     const descFr = newCourse.description.fr.trim();
@@ -335,7 +331,7 @@ const AdminCourses = () => {
             },
             (err) => reject(err),
             async () => {
-              pdfUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              pdfUrl = uploadTask.snapshot.ref.toString();
               pdfFileName = newCourse.pdfFile.name;
               resolve();
             }
@@ -353,6 +349,8 @@ const AdminCourses = () => {
           ar: newCourse.description.ar.trim(),
         },
         category: newCourse.category,
+        visibility: 'shared',
+        semester: newCourse.semester,
         difficulty: newCourse.difficulty,
         estimatedDuration: newCourse.estimatedDuration.trim(),
         pdfUrl,
@@ -497,6 +495,7 @@ const AdminCourses = () => {
           </div>
 
           <form onSubmit={handleAddCourse} className="space-y-6">
+            <SemesterSelect value={newCourse.semester} onChange={event => setNewCourse(previous => ({ ...previous, semester: event.target.value }))} language={language} allowAll disabled={saving} />
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <div>
                 <label className="block text-sm font-semibold text-gray-700">
@@ -849,10 +848,11 @@ const AdminCourses = () => {
                         </span>
                       </div>
 
-                      {course.pdfUrl && (
+                      <ContentSemesterEditor collectionName="courses" item={course} language={language} onUpdated={fetchCourses} />
+                      {(course.pdfUrl || course.pdfStoragePath) && (
                         <div className="mt-4">
                           <a
-                            href={course.pdfUrl}
+                            href={`/courses/${course.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-100"

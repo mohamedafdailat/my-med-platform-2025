@@ -69,7 +69,7 @@ const FlashcardGenerator = ({ onClose, onDeckSaved, initialCategory = 'general',
     if (!user?.uid || !cards.length || saved) return;
     setBusy(true); setError('');
     try {
-      const deck = { title: title.trim(), cards, ownerId: user.uid, visibility: 'private', status: 'active', category: initialCategory, cardCount: cards.length, difficulty: 'medium', createdAt: serverTimestamp(), ...(videoId ? { videoId } : {}) };
+      const deck = { title: title.trim(), cards, ownerId: user.uid, visibility: 'private', semester: user.semester ? String(user.semester) : '', status: 'active', category: initialCategory, cardCount: cards.length, difficulty: 'medium', createdAt: serverTimestamp(), ...(videoId ? { videoId } : {}) };
       const ref = await addDoc(collection(db, 'flashcards'), deck);
       setSaved(true);
       onDeckSaved?.({ ...deck, id: ref.id, createdAt: new Date() });

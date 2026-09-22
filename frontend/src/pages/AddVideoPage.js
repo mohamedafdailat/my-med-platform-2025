@@ -1,3 +1,4 @@
+import SemesterSelect, { validContentSemester } from '../components/SemesterSelect';
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import {
@@ -18,7 +19,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db, storage } from '../firebase';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable } from 'firebase/storage';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -277,15 +278,8 @@ const AddVideoPage = () => {
       newErrors.description = t.errors.descriptionRequired;
     }
 
-    if (formData.semester) {
-      const semesterNumber = Number(formData.semester);
-      if (
-        !Number.isInteger(semesterNumber) ||
-        semesterNumber < 1 ||
-        semesterNumber > 12
-      ) {
-        newErrors.semester = t.errors.semesterInvalid;
-      }
+    if (!validContentSemester(formData.semester)) {
+      newErrors.semester = t.errors.semesterInvalid;
     }
 
     if (videoType === 'upload') {
@@ -427,7 +421,8 @@ const AddVideoPage = () => {
       storagePath,
       category: formData.category,
       level: formData.level,
-      semester: formData.semester ? Number(formData.semester) : null,
+      semester: formData.semester,
+      visibility: 'shared',
       duration: formData.duration.trim(),
       type: videoType,
       isPremium: Boolean(formData.isPremium),
@@ -526,8 +521,7 @@ const AddVideoPage = () => {
           },
           async () => {
             try {
-              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(downloadUrl);
+              resolve(uploadTask.snapshot.ref.toString());
             } catch (downloadError) {
               reject(downloadError);
             }
@@ -791,21 +785,7 @@ const AddVideoPage = () => {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-700">
-                      {t.semester}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="12"
-                      value={formData.semester}
-                      onChange={(e) => handleChange('semester', e.target.value)}
-                      disabled={loading}
-                      placeholder={t.semesterPlaceholder}
-                      className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${
-                        errors.semester ? 'border-red-300' : 'border-gray-300'
-                      }`}
-                    />
+                    <SemesterSelect value={formData.semester} onChange={(event) => handleChange('semester', event.target.value)} language={language} allowAll disabled={loading} />
                     {errors.semester && (
                       <p className="mt-2 text-sm text-red-600">
                         {errors.semester}

@@ -1,23 +1,37 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
-    function adminAccess() { return signedIn() && request.auth.token.get('role', '') == 'admin'; }
+    function signedIn() { return request.auth != null && !exists(/databases/$(database)/documents/accountRevocations/$(request.auth.uid)); }
+    function adminAccess() { return signedIn() && request.auth.token.get('role', '') == 'admin' && request.auth.token.get('adminAccessVersion', 0) == 1; }
     function owns(data, field) { return signedIn() && data.get(field, '') == request.auth.uid; }
-    function visible(data, field) { return adminAccess() || (signedIn() && (data.get('visibility', '') == 'shared' || owns(data, field))); }
+    function validSemester(value) { return value is string && value.matches('^([1-9]|1[0-2])$'); }
+    function profileSemester() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('semester', '');
+    }
+    function semesterAccess(data) {
+      let semester = data.get('semester', '');
+      return adminAccess() || (signedIn() && (request.auth.token.get('unlimitedAccess', false) == true
+        || ((semester == 'all' || validSemester(semester)) && (semester == 'all' || semester == profileSemester()))));
+    }
+    function visible(data, field) {
+      return adminAccess() || (signedIn() && (
+        (data.get('visibility', '') == 'private' && owns(data, field))
+        || (data.get('visibility', '') == 'shared' && semesterAccess(data))
+      ));
+    }
     function privateCreate(field) { return owns(request.resource.data, field) && request.resource.data.visibility == 'private'; }
     function privateUpdate(field) {
-      return owns(resource.data, field) && resource.data.get('visibility', 'private') != 'shared'
+      return owns(resource.data, field) && resource.data.get('visibility', '') == 'private'
         && request.resource.data[field] == resource.data[field]
         && request.resource.data.visibility == 'private';
     }
 
     match /users/{userId} {
       function isOwner() {
-        return request.auth != null && request.auth.uid == userId;
+        return signedIn() && request.auth.uid == userId;
       }
       function isAdmin() {
-        return request.auth != null && request.auth.token.get('role', '') == 'admin';
+        return adminAccess();
       }
       allow read: if isOwner() || isAdmin();
       // Privileged fields are managed by the authenticated server API only.
@@ -29,11 +43,14 @@ service cloud.firestore {
         && request.resource.data.uid == userId
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.role == 'student'
-        && request.resource.data.subscriptionStatus == 'unpaid';
+        && request.resource.data.subscriptionStatus == 'unpaid'
+        && (request.resource.data.get('semester', '') == '' || validSemester(request.resource.data.semester));
       allow update: if isOwner()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'fullName', 'displayName', 'phoneNumber', 'semester', 'updatedAt', 'lastLogin'
-        ]);
+        ])
+        && (request.resource.data.get('semester', '') == resource.data.get('semester', '')
+          || (resource.data.get('semester', '') == '' && validSemester(request.resource.data.get('semester', ''))));
       allow delete: if false;
     }
 
@@ -46,7 +63,7 @@ service cloud.firestore {
       allow read: if visible(resource.data, 'creatorId');
       allow create: if adminAccess() || privateCreate('creatorId');
       allow update: if adminAccess() || privateUpdate('creatorId');
-      allow delete: if adminAccess() || (owns(resource.data, 'creatorId') && resource.data.get('visibility', 'private') != 'shared');
+      allow delete: if adminAccess() || (owns(resource.data, 'creatorId') && resource.data.get('visibility', '') == 'private');
     }
 
     match /quiz_attempts/{attemptId} {
@@ -55,33 +72,35 @@ service cloud.firestore {
     }
 
     match /courses/{courseId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.get('role', '') == 'admin';
+      allow read: if semesterAccess(resource.data);
+      allow write: if adminAccess();
     }
 
     match /videos/{videoId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.token.get('role', '') == 'admin';
+      allow read: if semesterAccess(resource.data);
+      allow write: if adminAccess();
     }
 
     match /flashcards/{flashcardId} {
       allow read: if visible(resource.data, 'ownerId');
       allow create: if adminAccess() || privateCreate('ownerId');
       allow update: if adminAccess() || privateUpdate('ownerId');
-      allow delete: if adminAccess() || (owns(resource.data, 'ownerId') && resource.data.get('visibility', 'private') != 'shared');
+      allow delete: if adminAccess() || (owns(resource.data, 'ownerId') && resource.data.get('visibility', '') == 'private');
     }
 
     // ✅ Ajout des règles pour les QCMs
     match /qcms/{qcmId} {
-      allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null && request.auth.token.get('role', '') == 'admin';
+      allow read: if semesterAccess(resource.data);
+      allow create, update, delete: if adminAccess();
     }
 
     // ✅ Ajout des règles pour les résultats QCM
     match /qcm_results/{resultId} {
       allow read: if adminAccess() || owns(resource.data, 'userId');
       allow create: if owns(request.resource.data, 'userId')
-        && exists(/databases/$(database)/documents/qcms/$(request.resource.data.qcmId));
+        && request.resource.data.qcmId is string
+        && exists(/databases/$(database)/documents/qcms/$(request.resource.data.qcmId))
+        && semesterAccess(get(/databases/$(database)/documents/qcms/$(request.resource.data.qcmId)).data);
       allow update, delete: if adminAccess();
     }
 
@@ -95,7 +114,7 @@ service cloud.firestore {
 
     // Admin-only collections
     match /admin/{document=**} {
-      allow read, write: if request.auth != null && request.auth.token.get('role', '') == 'admin';
+      allow read, write: if adminAccess();
     }
   }
 }

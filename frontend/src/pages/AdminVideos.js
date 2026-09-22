@@ -1,14 +1,13 @@
 // C:\my-med-platform\frontend\src\pages\AdminVideos.js
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import ContentSemesterEditor from '../components/ContentSemesterEditor';
 import { NavLink } from 'react-router-dom';
 import {
   collection,
   deleteDoc,
   doc,
   getDocs,
-  orderBy,
-  query,
   updateDoc,
 } from 'firebase/firestore';
 import { deleteObject, ref } from 'firebase/storage';
@@ -193,17 +192,7 @@ const AdminVideos = () => {
     setSuccess('');
 
     try {
-      let snapshot;
-
-      try {
-        const videosQuery = query(
-          collection(db, 'videos'),
-          orderBy('uploadedAt', 'desc')
-        );
-        snapshot = await getDocs(videosQuery);
-      } catch {
-        snapshot = await getDocs(collection(db, 'videos'));
-      }
+      const snapshot = await getDocs(collection(db, 'videos'));
 
       const videosList = snapshot.docs.map((document) => ({
         id: document.id,
@@ -354,7 +343,7 @@ const AdminVideos = () => {
       return `https://www.youtube.com/watch?v=${videoItem.youtubeId}`;
     }
 
-    return videoItem.videoUrl || '#';
+    return `/videos/${videoItem.id}`;
   };
 
   return (
@@ -521,6 +510,7 @@ const AdminVideos = () => {
                               </div>
                               <div>
                                 <p className="font-semibold text-gray-900">{title}</p>
+                                <ContentSemesterEditor collectionName="videos" item={videoItem} language={language} onUpdated={fetchVideos} />
                                 <p className="line-clamp-1 max-w-xs text-xs text-gray-500">
                                   {getLocalizedText(videoItem.description)}
                                 </p>
@@ -626,6 +616,7 @@ const AdminVideos = () => {
 
                         <div className="min-w-0 flex-1">
                           <h2 className="font-bold text-gray-900">{title}</h2>
+                          <ContentSemesterEditor collectionName="videos" item={videoItem} language={language} onUpdated={fetchVideos} />
                           <p className="mt-1 line-clamp-2 text-sm text-gray-500">
                             {getLocalizedText(videoItem.description)}
                           </p>
