@@ -53,7 +53,7 @@ const TRANSLATIONS = {
     delete: 'Supprimer',
     noDecks: 'Aucun deck trouvé.',
     myDecks: 'Mes decks personnalisés',
-    defaultDecks: 'Decks par défaut',
+    defaultDecks: 'Bibliothèque partagée',
     createdOn: 'Créé le',
     difficulty: 'Difficulté',
     easy: 'Facile',
@@ -126,7 +126,7 @@ const TRANSLATIONS = {
     delete: 'حذف',
     noDecks: 'لم يتم العثور على مجموعات.',
     myDecks: 'مجموعاتي المخصصة',
-    defaultDecks: 'المجموعات الافتراضية',
+    defaultDecks: 'المكتبة المشتركة',
     createdOn: 'تم إنشاؤه في',
     difficulty: 'الصعوبة',
     easy: 'سهل',
@@ -241,109 +241,6 @@ const Flashcards = () => {
     [t]
   );
 
-  const defaultFlashcardDecks = useMemo(
-    () => [
-      {
-        id: 'default-1',
-        title: t('humanAnatomy'),
-        description: t('humanAnatomyDesc'),
-        thumbnail: LOCAL_THUMBNAILS.anatomy,
-        category: 'anatomy',
-        type: 'default',
-        difficulty: 'medium',
-        cards: [
-          {
-            id: 'card-anatomy-1',
-            question: {
-              fr: "Quelle est la fonction principale du cœur ?",
-              ar: 'ما هي الوظيفة الرئيسية للقلب؟',
-            },
-            answer: {
-              fr: 'Le cœur est un organe musculaire qui assure la circulation du sang dans tout l’organisme grâce à des contractions rythmiques.',
-              ar: 'القلب عضو عضلي يضمن دوران الدم في الجسم بفضل تقلصات منتظمة.',
-            },
-            difficulty: 'medium',
-            category: 'anatomy',
-          },
-          {
-            id: 'card-anatomy-2',
-            question: {
-              fr: 'Où se situe le foie ?',
-              ar: 'أين يوجد الكبد؟',
-            },
-            answer: {
-              fr: 'Le foie se situe principalement dans la partie supérieure droite de l’abdomen, sous le diaphragme.',
-              ar: 'يوجد الكبد أساساً في الجزء العلوي الأيمن من البطن تحت الحجاب الحاجز.',
-            },
-            difficulty: 'easy',
-            category: 'anatomy',
-          },
-        ],
-      },
-      {
-        id: 'default-2',
-        title: t('pharmacologyDeck'),
-        description: t('pharmacologyDeckDesc'),
-        thumbnail: LOCAL_THUMBNAILS.pharmacology,
-        category: 'pharmacology',
-        type: 'default',
-        difficulty: 'hard',
-        cards: [
-          {
-            id: 'card-pharma-1',
-            question: {
-              fr: "Quel est le mécanisme d’action principal du paracétamol ?",
-              ar: 'ما هي آلية العمل الرئيسية للباراسيتامول؟',
-            },
-            answer: {
-              fr: 'Le paracétamol possède une action antalgique et antipyrétique. Son mécanisme exact reste complexe, mais il agit surtout au niveau central.',
-              ar: 'للباراسيتامول تأثير مسكن وخافض للحرارة، ويعمل بشكل أساسي على المستوى المركزي.',
-            },
-            difficulty: 'medium',
-            category: 'pharmacology',
-          },
-          {
-            id: 'card-pharma-2',
-            question: {
-              fr: "Pourquoi l’aspirine peut-elle avoir un effet antiagrégant plaquettaire ?",
-              ar: 'لماذا يمكن للأسبرين أن يكون له تأثير مضاد لتجمع الصفائح؟',
-            },
-            answer: {
-              fr: 'L’aspirine inhibe de manière irréversible la cyclo-oxygénase plaquettaire, diminuant la production de thromboxane A2.',
-              ar: 'يثبط الأسبرين إنزيم السيكلوأوكسيجيناز في الصفائح بشكل غير عكوس، مما يقلل إنتاج الثرومبوكسان A2.',
-            },
-            difficulty: 'hard',
-            category: 'pharmacology',
-          },
-        ],
-      },
-      {
-        id: 'default-3',
-        title: t('physiologyDeck'),
-        description: t('physiologyDeckDesc'),
-        thumbnail: LOCAL_THUMBNAILS.physiology,
-        category: 'physiology',
-        type: 'default',
-        difficulty: 'medium',
-        cards: [
-          {
-            id: 'card-physio-1',
-            question: {
-              fr: 'Quel est le rôle du surfactant pulmonaire ?',
-              ar: 'ما هو دور السورفاكتانت الرئوي؟',
-            },
-            answer: {
-              fr: 'Le surfactant diminue la tension superficielle des alvéoles et limite leur collapsus lors de l’expiration.',
-              ar: 'يقلل السورفاكتانت من التوتر السطحي للحويصلات ويمنع انخماصها أثناء الزفير.',
-            },
-            difficulty: 'hard',
-            category: 'physiology',
-          },
-        ],
-      },
-    ],
-    [t]
-  );
 
   const isAdmin = useCallback((currentUser) => {
     return (
@@ -548,6 +445,7 @@ const Flashcards = () => {
         cards,
         type: 'custom',
         ownerId: user?.uid || 'anonymous',
+        visibility: 'private',
         cardCount: cards.length,
         createdAt: getFirestoreDate(newDeck.createdAt),
         thumbnail: newDeck.thumbnail || LOCAL_THUMBNAILS[category] || LOCAL_THUMBNAILS.general,
@@ -636,8 +534,8 @@ const Flashcards = () => {
   );
 
   const allDecks = useMemo(
-    () => [...new Map([...defaultFlashcardDecks, ...customDecks].map(deck => [deck.id, deck])).values()],
-    [customDecks, defaultFlashcardDecks]
+    () => [...new Map(customDecks.map(deck => [deck.id, deck])).values()],
+    [customDecks]
   );
 
   const filteredDecks = useMemo(() => {
@@ -656,12 +554,12 @@ const Flashcards = () => {
   }, [allDecks, selectedCategory, searchQuery]);
 
   const visibleCustomDecks = useMemo(
-    () => filteredDecks.filter((deck) => deck.type === 'custom'),
+    () => filteredDecks.filter((deck) => deck.visibility !== 'shared'),
     [filteredDecks]
   );
 
   const visibleDefaultDecks = useMemo(
-    () => filteredDecks.filter((deck) => deck.type === 'default'),
+    () => filteredDecks.filter((deck) => deck.visibility === 'shared'),
     [filteredDecks]
   );
 

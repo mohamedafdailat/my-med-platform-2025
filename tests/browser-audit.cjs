@@ -151,6 +151,7 @@ const syntheticPdf = () => {
     await deck.getByRole('button', { name: 'Rendre personnel' }).waitFor();
     await secondStudent.reload();
     await secondStudent.getByRole('heading', { name: deckTitle, exact: true }).waitFor();
+    await secondStudent.locator('section').filter({ has: secondStudent.getByRole('heading', { name: 'Bibliothèque partagée', exact: true }) }).getByRole('heading', { name: deckTitle, exact: true }).waitFor();
     await student.reload();
     await student.getByRole('heading', { name: 'Flashcards médicales', exact: true }).waitFor();
     assert.equal(await student.getByRole('heading', { name: deckTitle, exact: true }).count(), 0, 'S1 cannot see a deck published for S2');
