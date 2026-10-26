@@ -1,5 +1,6 @@
 export const isSemester = (value) => typeof value === 'string' && /^(?:[1-9]|1[0-2])$/.test(value);
 export const isContentSemester = (value) => value === 'all' || isSemester(value);
+export const hasAdminAccess = (claims) => claims?.role === 'admin' && claims.adminAccessVersion === 1;
 
 // Read trusted Auth claims and the current profile on every request. A student's
 // selected level is never taken from request bodies or stale token claims.
@@ -16,7 +17,7 @@ export const getContentAccess = async ({ auth, db, uid }) => {
   const semester = profile.data()?.semester;
   return {
     uid,
-    administrator: account.customClaims?.role === 'admin',
+    administrator: hasAdminAccess(account.customClaims),
     unlimitedAccess: account.customClaims?.unlimitedAccess === true,
     semester: isSemester(semester) ? semester : null,
   };

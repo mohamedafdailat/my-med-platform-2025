@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, NavLink, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../firebase';
@@ -9,6 +9,7 @@ import {
 import { resolveMediaUrl } from '../services/mediaService';
 import { useAuth } from '../contexts/AuthContext';
 import { getVisibleDocuments } from '../services/contentService';
+import { getYouTubeId } from '../utils/videos';
 import FlashcardGenerator from './FlashcardGenerator';
 import QCMPlayer from './QCMPlayer.js';
 
@@ -44,6 +45,9 @@ const VideoPlayer = () => {
   const [qcms, setQcms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [relatedError, setRelatedError] = useState(false);
+  const requestVersion = useRef(0);
+  const playbackPosition = useRef(0);
 
   const [videoError, setVideoError] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -164,36 +168,6 @@ const VideoPlayer = () => {
     [isValidYouTubeId]
   );
 
-  const extractYouTubeId = useCallback((url) => {
-    if (!url || typeof url !== 'string') return null;
-
-    const patterns = [
-      /youtu\.be\/([^#&?]{11})/,
-      /youtube\.com\/embed\/([^#&?]{11})/,
-      /youtube\.com\/watch\?v=([^#&?]{11})/,
-      /youtube\.com\/watch\?.*&v=([^#&?]{11})/,
-      /youtube\.com\/shorts\/([^#&?]{11})/,
-    ];
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match?.[1]) return match[1];
-    }
-
-    return null;
-  }, []);
-
-  const isYouTubeUrl = useCallback(
-    (url) =>
-      Boolean(
-        url &&
-          /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)\/.+/i.test(
-            url
-          )
-      ),
-    []
-  );
-
   const formatDate = useCallback(
     (timestamp) => {
       if (!timestamp) return '';
@@ -220,6 +194,7 @@ const VideoPlayer = () => {
   );
 
   const fetchVideoData = useCallback(async () => {
+    const version = ++requestVersion.current;
     if (!id) {
       setError(t('videoNotFound'));
       setLoading(false);
@@ -229,10 +204,15 @@ const VideoPlayer = () => {
     setLoading(true);
     setError(null);
     setVideoError(false);
+    setRelatedError(false);
+    setVideo(null);
+    setFlashcards([]);
+    setQcms([]);
 
     try {
       const videoDoc = doc(db, 'videos', id);
       const docSnap = await getDoc(videoDoc);
+      if (version !== requestVersion.current) return;
 
       if (!docSnap.exists()) {
         setError(t('videoNotFound'));
@@ -240,16 +220,21 @@ const VideoPlayer = () => {
       }
 
       const data = docSnap.data();
+      if (data.status === 'inactive') {
+        setError(t('videoNotFound'));
+        return;
+      }
 
-      const rawVideoUrl = await resolveMediaUrl('videos', id, data.videoUrl || data.youtubeLink || data.url || (data.youtubeId ? `https://www.youtube.com/watch?v=${data.youtubeId}` : ''), data.storagePath || data.filePath);
+      const sourceYoutubeId = getYouTubeId(data.youtubeId);
+      const rawVideoUrl = await resolveMediaUrl('videos', id, data.videoUrl || data.youtubeLink || data.url || (sourceYoutubeId ? `https://www.youtube.com/watch?v=${sourceYoutubeId}` : ''), data.storagePath || data.filePath);
+      if (version !== requestVersion.current) return;
 
       if (!rawVideoUrl) {
         setError(t('noVideoLink'));
         return;
       }
 
-      const detectedYoutubeId =
-        data.youtubeId || extractYouTubeId(rawVideoUrl) || null;
+      const detectedYoutubeId = sourceYoutubeId || getYouTubeId(rawVideoUrl);
 
       const videoData = {
         id: docSnap.id,
@@ -266,9 +251,7 @@ const VideoPlayer = () => {
         uploadedBy: data.uploadedBy || '',
         category: data.category || 'other',
         duration: data.duration || '',
-        type:
-          data.type ||
-          (detectedYoutubeId || isYouTubeUrl(rawVideoUrl) ? 'youtube' : 'uploaded'),
+        type: detectedYoutubeId ? 'youtube' : 'uploaded',
         youtubeId: detectedYoutubeId,
       };
 
@@ -277,12 +260,21 @@ const VideoPlayer = () => {
       }
 
       setVideo(videoData);
+      setLoading(false);
 
-      const documents = await getVisibleDocuments('flashcards', user);
+      // A missing optional resource or index must not prevent video playback.
+      const related = await Promise.allSettled([
+        getVisibleDocuments('flashcards', user),
+        getVisibleDocuments('qcms', user),
+      ]);
+      if (version !== requestVersion.current) return;
+      setRelatedError(related.some(result => result.status === 'rejected'));
+      const documents = related[0].status === 'fulfilled' ? related[0].value : [];
       const flashcardsData = documents.filter(d => d.data().videoId === id)
         .flatMap((flashcardDoc) => {
           const data = flashcardDoc.data();
-          return (data.cards || data.flashcards || [data]).map((flashcard, index) => ({
+          const cards = data.cards || data.flashcards;
+          return (Array.isArray(cards) ? cards : [data]).filter(card => card && typeof card === 'object').map((flashcard, index) => ({
             id: `${flashcardDoc.id}-${index}`,
             question:
               flashcard.question ||
@@ -302,7 +294,7 @@ const VideoPlayer = () => {
       setCurrentFlashcard(0);
       setShowAnswer(false);
 
-      const qcmDocuments = await getVisibleDocuments('qcms', user);
+      const qcmDocuments = related[1].status === 'fulfilled' ? related[1].value : [];
       const qcmsData = qcmDocuments.filter(document => document.data().videoId === id && document.data().status !== 'inactive').map((qcmDoc) => {
         const qcm = qcmDoc.data();
 
@@ -318,16 +310,19 @@ const VideoPlayer = () => {
 
       setQcms(qcmsData);
     } catch (err) {
-      console.error('Erreur lors du chargement:', err);
-      setError(`${t('loadingError')}: ${err.message}`);
+      if (version === requestVersion.current) setError(t('loadingError'));
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  }, [id, t, isYouTubeUrl, extractYouTubeId, language, user]);
+  }, [id, t, language, user]);
+
+  const cancelVideoRequest = useCallback(() => { ++requestVersion.current; }, []);
 
   useEffect(() => {
+    playbackPosition.current = 0;
     fetchVideoData();
-  }, [fetchVideoData]);
+    return cancelVideoRequest;
+  }, [fetchVideoData, cancelVideoRequest]);
 
   const handleVideoError = useCallback(() => {
     setVideoError(true);
@@ -337,10 +332,7 @@ const VideoPlayer = () => {
     if (!video) return;
 
     try {
-      const shareUrl =
-        video.type === 'youtube' && video.youtubeId
-          ? `https://www.youtube.com/watch?v=${video.youtubeId}`
-          : `${window.location.origin}/videos/${id}`;
+      const shareUrl = `${window.location.origin}/videos/${encodeURIComponent(id)}`;
 
       const shareTitle = getLocalizedText(video.title, language);
       const shareDescription = getLocalizedText(video.description, language);
@@ -454,17 +446,20 @@ const VideoPlayer = () => {
       }
     }
 
-    if (video.type === 'uploaded' && video.videoUrl) {
+    if (video.type === 'uploaded' && video.videoUrl && !videoError) {
       return (
         <div className="aspect-video bg-black rounded-lg overflow-hidden">
           <video
+            key={video.videoUrl}
             className="w-full h-full"
             controls
             preload="metadata"
             onError={handleVideoError}
+            onTimeUpdate={event => { playbackPosition.current = event.currentTarget.currentTime; }}
+            onLoadedMetadata={event => { if (playbackPosition.current > 0) event.currentTarget.currentTime = playbackPosition.current; }}
           >
             <source src={video.videoUrl} type={video.fileType || 'video/mp4'} />
-            Votre navigateur ne supporte pas la lecture vidéo.
+            {t('videoLoadError')}
           </video>
         </div>
       );
@@ -492,6 +487,7 @@ const VideoPlayer = () => {
           <p className="text-gray-500 text-lg">
             {videoError ? t('videoLoadError') : t('noVideoLink')}
           </p>
+          {videoError && <button type="button" onClick={fetchVideoData} className="btn-primary mt-4">{t('retry')}</button>}
         </div>
       </div>
     );
@@ -1000,7 +996,7 @@ const VideoPlayer = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50" dir={language === 'ar' ? 'rtl' : 'ltr'}>
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-xl shadow-lg mb-8 overflow-hidden">
           <div
@@ -1052,6 +1048,7 @@ const VideoPlayer = () => {
         </div>
 
         <div className="bg-white rounded-xl shadow-lg mb-8">
+          {relatedError && <p role="status" className="p-4 text-sm text-amber-800 bg-amber-50">{language === 'ar' ? 'بعض الموارد الإضافية غير متاحة مؤقتاً. يمكنك متابعة مشاهدة الفيديو.' : 'Certaines ressources complémentaires sont momentanément indisponibles. Vous pouvez continuer à regarder la vidéo.'}</p>}
           <div className="border-b border-gray-200 overflow-x-auto">
             <nav className="flex space-x-8 px-6 min-w-max" aria-label="Tabs">
               {tabs.map((tab) => (

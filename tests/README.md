@@ -14,7 +14,7 @@ npm ci --prefix tests
 npm test --prefix tests
 ```
 
-Attendre le message `All emulators ready` avant les tests. La suite réinitialise la base de démonstration. Les 30 tests couvrent les droits des profils, le verrouillage du semestre, S1/S2/contenu général, l'accès illimité sans accès aux créations privées d'autrui, les règles Firestore/Storage, les anciens jetons révoqués, les résultats individuels et les routes Express. Le routeur média est testé avec des services simulés : aucun fichier réel ni clé privée.
+Attendre le message `All emulators ready` avant les tests. La suite réinitialise la base de démonstration. Les tests couvrent les droits des profils, le verrouillage du semestre, S1/S2/contenu général, l'accès illimité sans accès aux créations privées d'autrui, les règles Firestore/Storage, les anciens jetons révoqués, les résultats individuels et les routes Express. Ils vérifient aussi qu'un ancien claim admin sans `adminAccessVersion: 1` ne donne aucun privilège API. Le routeur média est testé avec des services simulés : aucun fichier réel ni clé privée.
 
 Dans deux terminaux distincts :
 
@@ -31,6 +31,14 @@ Puis, après compilation du frontend :
 ```powershell
 npm run test:browser --prefix tests
 ```
+
+Le parcours consacré aux vidéos et au tableau de bord se lance séparément, après les tests d'intégration et avec les deux serveurs locaux actifs :
+
+```powershell
+npm run test:student-experience --prefix tests
+```
+
+Ce parcours ajoute ses données fictives uniquement au projet d'émulation, active l'abonnement de l'étudiant démo et réinitialise ses tentatives. Il vérifie l'activité réelle sur 7/30 jours, le tableau accessible, les filtres/recherche/tri, les vues grille/liste, le partage par lien interne, l'isolation du semestre, les largeurs 320/390/768 px et l'arabe RTL. Aucun lecteur ni lien signé n'est chargé dans la bibliothèque. Captures dans `.cache/student-experience-qa/`. Les suites navigateur partagent les comptes démo : les exécuter séparément et relancer l'intégration entre les parcours.
 
 Exécuter les tests d'intégration **avant** les tests navigateur, jamais en parallèle : ils utilisent les mêmes comptes fictifs. Relancer la suite d'intégration avant chaque nouveau parcours navigateur pour rétablir les rôles et statuts initiaux.
 

@@ -49,10 +49,16 @@ test('late token result cannot replace a newer account', async () => {
   expect(state().user.role).toBe('student');
 });
 test('profile updates appear without signing in again', async () => {
-  await act(async () => authChange(account('admin', { role: 'admin' })));
+  await act(async () => authChange(account('admin', { role: 'admin', adminAccessVersion: 1 })));
   act(() => profileChange({ data: () => ({ fullName: 'Initial', semester: '1' }) }));
   act(() => profileChange({ data: () => ({ fullName: 'Modifié', semester: '4', role: 'student' }) }));
   expect(state().user).toMatchObject({ fullName: 'Modifié', semester: '4', role: 'admin' });
+});
+
+test.each([undefined, 0, '1', 2])('legacy admin access version %s cannot enable an effective admin role', async (adminAccessVersion) => {
+  await act(async () => authChange(account('legacy-admin', { role: 'admin', adminAccessVersion, otherClaim: true })));
+  act(() => profileChange({ data: () => ({ role: 'admin', fullName: 'Legacy Admin' }) }));
+  expect(state().user).toMatchObject({ role: 'student', customClaims: { role: 'student', otherClaim: true } });
 });
 
 test('same-account token refresh preserves the active page while claims load', async () => {

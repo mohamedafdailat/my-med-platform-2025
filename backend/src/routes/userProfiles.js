@@ -1,5 +1,5 @@
 import express from 'express';
-import { isSemester } from './contentAccess.js';
+import { hasAdminAccess, isSemester } from './contentAccess.js';
 
 const roles = new Set(['student', 'teacher', 'admin', 'user']);
 const statuses = new Set(['unpaid', 'paid', 'free', 'active', 'inactive']);
@@ -8,7 +8,7 @@ const plans = new Set(['free', 'student', 'monthly', 'annual']);
 export const createRequireAdmin = (auth) => async (req, res, next) => {
   try {
     const account = await auth.getUser(req.user.uid);
-    if (account.disabled || account.customClaims?.role !== 'admin') {
+    if (account.disabled || !hasAdminAccess(account.customClaims)) {
       return res.status(403).json({ error: 'Accès administrateur requis.' });
     }
     return next();
@@ -67,7 +67,7 @@ export const createUserProfilesRouter = ({ auth, db, authenticate }) => {
   router.get('/:id', handle(async (req, res) => {
     if (req.params.id !== req.user.uid) {
       const requester = await auth.getUser(req.user.uid);
-      if (requester.disabled || requester.customClaims?.role !== 'admin') {
+      if (requester.disabled || !hasAdminAccess(requester.customClaims)) {
         return res.status(403).json({ error: 'Accès à ce profil interdit.' });
       }
     }
@@ -94,7 +94,7 @@ export const createUserProfilesRouter = ({ auth, db, authenticate }) => {
     }
     const account = await getAccount(req.params.id);
     if (!account) return res.status(409).json({ error: 'Ce profil ne possède plus de compte de connexion. Une réconciliation est nécessaire.' });
-    if (payload.role === 'admin' && account.customClaims?.role !== 'admin') {
+    if (payload.role === 'admin' && !hasAdminAccess(account.customClaims)) {
       return res.status(409).json({ error: 'La plateforme conserve un administrateur unique. La création d’un autre administrateur est désactivée.' });
     }
     const profileRef = db.collection('users').doc(req.params.id);

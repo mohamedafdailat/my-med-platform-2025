@@ -1,5 +1,6 @@
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { hasAdminAccess } from '../utils/access';
 
 // Rules enforce the same boundaries; filtering only in React is insufficient.
 export const getVisibleDocuments = async (name, user, { onlyOwn = false } = {}) => {
@@ -9,7 +10,7 @@ export const getVisibleDocuments = async (name, user, { onlyOwn = false } = {}) 
   if (!personalCollection && !institutionalCollection) throw new Error('Unsupported content collection');
   const ref = collection(db, name);
   const ownerField = name === 'quizzes' ? 'creatorId' : 'ownerId';
-  if (!onlyOwn && user.customClaims?.role === 'admin') return (await getDocs(ref)).docs;
+  if (!onlyOwn && hasAdminAccess(user.customClaims)) return (await getDocs(ref)).docs;
   const semesters = Array.from({ length: 12 }, (_, index) => String(index + 1));
   const semester = semesters.includes(String(user.semester)) ? String(user.semester) : null;
   const unlimited = user.customClaims?.unlimitedAccess === true;

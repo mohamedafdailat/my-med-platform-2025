@@ -8,10 +8,11 @@ const express = backendRequire('express');
 
 // Pure local fakes: these tests never load a service account or call Cloud Storage.
 const bucketName = 'demo-medplatform-audit.firebasestorage.app';
-const profiles = { student: { semester: '1' }, other: { semester: '2' }, unlimited: { semester: '2' }, admin: {}, disabled: { semester: '1' } };
+const profiles = { student: { semester: '1' }, other: { semester: '2' }, unlimited: { semester: '2' }, admin: {}, legacyAdmin: { semester: '1' }, disabled: { semester: '1' } };
 const accounts = {
   student: { customClaims: { role: 'student' } }, other: { customClaims: { role: 'student' } },
-  unlimited: { customClaims: { role: 'student', unlimitedAccess: true } }, admin: { customClaims: { role: 'admin' } },
+  unlimited: { customClaims: { role: 'student', unlimitedAccess: true } }, admin: { customClaims: { role: 'admin', adminAccessVersion: 1 } },
+  legacyAdmin: { customClaims: { role: 'admin' } },
   disabled: { disabled: true, customClaims: { role: 'student' } },
 };
 const records = {
@@ -80,6 +81,14 @@ test('media signs only a stored file for ten minutes and never caches the respon
   assert.equal(call.options.version, 'v4');
   assert.equal(call.options.action, 'read');
   assert.equal(call.options.expires.toISOString(), result.expiresAt);
+});
+
+test('legacy admin claims do not bypass semester checks or grant unclassified media access', async () => {
+  const beforeCount = signingCalls.length;
+  assert.equal((await request('legacyAdmin', '/courses/second/media')).status, 403);
+  assert.equal((await request('legacyAdmin', '/courses/unclassified/media')).status, 403);
+  assert.equal(signingCalls.length, beforeCount);
+  assert.equal((await request('legacyAdmin', '/courses/first/media')).status, 200);
 });
 
 test('admin and unlimited accounts can read other classified semesters; common content works', async () => {

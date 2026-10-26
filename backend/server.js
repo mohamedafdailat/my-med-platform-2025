@@ -13,6 +13,7 @@ import helmet from 'helmet';
 import { body, validationResult } from 'express-validator';
 import dotenv from 'dotenv';
 import { createUserProfilesRouter, createRequireAdmin } from './src/routes/userProfiles.js';
+import { createJsonBodyParser } from './src/middleware/requestBody.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -241,7 +242,8 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '2mb' }));
+// JSON compression is unused by the frontend and rejected before decompression.
+app.use(createJsonBodyParser());
 
 app.use(
   rateLimit({

@@ -6,6 +6,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { usePayment } from '../contexts/PaymentContext';
+import { hasAdminAccess } from '../utils/access';
 
 const LoadingSpinner = ({ language = 'fr' }) => (
   <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -130,7 +131,7 @@ const ProtectedRoute = ({ children, requiredRole, isPaidRequired, featureName })
   const userRoleCheck = useMemo(() => {
     if (!user) return { isAdmin: false, isStudent: false };
 
-    const isAdmin = user?.customClaims?.role === 'admin';
+    const isAdmin = hasAdminAccess(user.customClaims);
 
     const isStudent = user?.role === 'student' ||
       user?.customClaims?.role === 'student' ||
@@ -154,9 +155,8 @@ const ProtectedRoute = ({ children, requiredRole, isPaidRequired, featureName })
 
   // Check role requirements
   if (requiredRole) {
-    const hasRequiredRole = isAdmin || 
-      (requiredRole === 'student' ? isStudent : user.role === requiredRole || user.customClaims?.role === requiredRole) ||
-      (requiredRole === 'admin' && isAdmin);
+    const hasRequiredRole = requiredRole === 'admin' ? isAdmin : isAdmin ||
+      (requiredRole === 'student' ? isStudent : user.role === requiredRole || user.customClaims?.role === requiredRole);
 
     if (!hasRequiredRole) {
       return <Navigate to="/" replace />;
@@ -197,7 +197,7 @@ export const PaidFeatureWrapper = ({ children, featureName, fallbackComponent = 
   const { checkFeatureAccess } = usePayment();
 
   // Admin bypass
-  if (user?.customClaims?.role === 'admin' || user?.customClaims?.unlimitedAccess === true) {
+  if (hasAdminAccess(user?.customClaims) || user?.customClaims?.unlimitedAccess === true) {
     return children;
   }
 

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebase/config';
 import { onIdTokenChanged, sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { hasAdminAccess } from '../utils/access';
 
 const AuthContext = createContext();
 
@@ -40,6 +41,10 @@ export const AuthProvider = ({ children }) => {
       try {
         const { claims } = await firebaseUser.getIdTokenResult(accountChanged);
         if (version !== currentVersion) return;
+        // Keep the other signed claims, but legacy admin roles must not enable
+        // admin menus or subscription bypasses rejected by the API and rules.
+        const effectiveClaims = claims.role === 'admin' && !hasAdminAccess(claims)
+          ? { ...claims, role: 'student' } : claims;
         const updateUser = (data = {}, error = null) => {
           if (version !== currentVersion) return;
           setUser({
@@ -50,8 +55,8 @@ export const AuthProvider = ({ children }) => {
             displayName: data.fullName || data.displayName || firebaseUser.displayName || '',
             fullName: data.fullName || data.displayName || firebaseUser.displayName || '',
             photoURL: firebaseUser.photoURL,
-            role: claims.role || 'student',
-            customClaims: claims,
+            role: effectiveClaims.role || 'student',
+            customClaims: effectiveClaims,
           });
           setProfileError(error);
           setLoading(false);

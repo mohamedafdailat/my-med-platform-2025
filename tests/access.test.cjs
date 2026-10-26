@@ -25,13 +25,14 @@ before(async () => {
   await env.clearFirestore();
   app = admin.initializeApp({ projectId }, 'local-access-tests');
   auth = app.auth(); db = app.firestore();
-  for (const [uid, role, semester, unlimitedAccess = false] of [
+  for (const [uid, role, semester, unlimitedAccess = false, legacyAdmin = false] of [
     ['audit-student', 'student', '1'], ['audit-other', 'student', '2'],
     ['audit-admin', 'admin', '1'], ['audit-unlimited', 'student', '1', true],
+    ['audit-legacy-admin', 'admin', '1', false, true],
   ]) {
     try { await auth.deleteUser(uid); } catch {}
     await auth.createUser({ uid, email: `${uid}@example.test`, password: 'LocalOnly-123456!' });
-    await auth.setCustomUserClaims(uid, { role, ...(role === 'admin' ? { adminAccessVersion: 1 } : {}), ...(unlimitedAccess ? { unlimitedAccess } : {}) });
+    await auth.setCustomUserClaims(uid, { role, ...(role === 'admin' && !legacyAdmin ? { adminAccessVersion: 1 } : {}), ...(unlimitedAccess ? { unlimitedAccess } : {}) });
     await db.collection('users').doc(uid).set({ uid, email: `${uid}@example.test`, fullName: uid, role, semester, subscriptionStatus: 'unpaid', createdAt: admin.firestore.Timestamp.now() });
     const r = await fetch('http://127.0.0.1:19099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `${uid}@example.test`, password: 'LocalOnly-123456!', returnSecureToken: true }),
@@ -291,6 +292,20 @@ test('API rejects anonymous and non-admin list access', async () => {
   assert.equal((await request('audit-student')).status, 403);
   const response = await request('audit-admin'); assert.equal(response.status, 200);
   assert.ok((await response.json()).users.some(user => user.id === 'audit-student'));
+});
+test('API rejects legacy admin claims for private profiles, account management and private quizzes', async () => {
+  assert.equal((await request('audit-legacy-admin')).status, 403);
+  assert.equal((await request('audit-legacy-admin', '/audit-student')).status, 403);
+  assert.equal((await request('audit-legacy-admin', '/audit-student', 'PATCH', { semester: '2' })).status, 403);
+  assert.equal((await request('audit-admin', '/audit-legacy-admin', 'PATCH', { role: 'admin' })).status, 409);
+  const quizzes = base.replace('/users', '/quizzes');
+  const headers = { Authorization: 'Bearer ' + tokens['audit-legacy-admin'], 'Content-Type': 'application/json' };
+  const response = await fetch(quizzes, { headers });
+  assert.equal(response.status, 200);
+  assert.ok(!(await response.json()).some(quiz => quiz.id === 'api-other-private'));
+  assert.equal((await fetch(quizzes + '/api-other-private/attempt', {
+    method: 'POST', headers, body: JSON.stringify({ answers: [{ questionId: 'q1', userAnswer: true }] }),
+  })).status, 403);
 });
 test('API protects private profiles and ignores stored identity/role overrides', async () => {
   await db.collection('users').doc('audit-student').update({ uid: 'audit-admin', role: 'admin' });

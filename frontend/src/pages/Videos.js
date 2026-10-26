@@ -1,615 +1,123 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowDownWideNarrow, ArrowRight, BookOpen, Check, Film, Grid2X2, Layers, List, Play, RefreshCw, Search, Share2, SlidersHorizontal, Sparkles, Video, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getVisibleDocuments } from '../services/contentService';
 import { toDate } from '../utils/dates';
-import debounce from 'lodash/debounce';
+import { localizedVideoText, normalizeVideo, videoSearchText } from '../utils/videos';
+import '../styles/video-library.css';
+
+const copy = {
+  fr: {
+    eyebrow: 'VOTRE CAMPUS EN VIDÉO', title: 'Un déclic à chaque vidéo.', subtitle: 'Comprenez les notions essentielles, explorez vos spécialités et avancez à votre rythme.',
+    library: 'Bibliothèque vidéo', videos: 'vidéos disponibles', categories: 'spécialités à explorer', semester: 'Semestre', general: 'Tous les semestres',
+    featured: 'À découvrir', watch: 'Regarder la vidéo', explore: 'Explorer la bibliothèque', back: 'Mon tableau de bord', all: 'Tout explorer',
+    search: 'Rechercher une notion, un titre, une spécialité…', searchLabel: 'Rechercher dans les vidéos', clearSearch: 'Effacer la recherche',
+    sort: 'Trier les vidéos', newest: 'Plus récentes', oldest: 'Plus anciennes', titleSort: 'Titre : A à Z', filter: 'Filtrer par spécialité',
+    grid: 'Affichage en grille', list: 'Affichage en liste', results: 'résultat(s)', reset: 'Réinitialiser les filtres',
+    empty: 'Votre bibliothèque se prépare.', emptyText: 'Les vidéos disponibles pour votre semestre apparaîtront ici. En attendant, explorez vos autres ressources.', courses: 'Explorer les cours',
+    noResults: 'Pas encore la bonne vidéo ?', noResultsText: 'Essayez une autre notion ou élargissez votre sélection de spécialités.',
+    error: 'La bibliothèque est momentanément indisponible.', errorText: 'Vérifiez votre connexion puis réessayez pour retrouver vos vidéos.', retry: 'Réessayer', refresh: 'Actualiser la bibliothèque', loading: 'Chargement de votre bibliothèque…',
+    uploaded: 'Vidéo de cours', share: 'Partager', copied: 'Lien copié', shareError: 'Le partage est indisponible dans ce navigateur.',
+    tipTitle: 'Voir. Comprendre. Retenir.', tip: 'Après une vidéo, testez vos connaissances avec un quiz ou une session de flashcards.', practice: 'Passer aux quiz', noTitle: 'Vidéo sans titre', noDescription: 'Une nouvelle notion à explorer pour enrichir vos révisions.',
+    categoryNames: { 'general-medicine': 'Médecine générale', cardiology: 'Cardiologie', pharmacy: 'Pharmacie', technology: 'Technologie médicale', dentaire: 'Santé dentaire', other: 'Autres' },
+  },
+  ar: {
+    eyebrow: 'فضاؤك للتعلّم بالفيديو', title: 'فهم أعمق مع كل فيديو.', subtitle: 'افهم المفاهيم الأساسية، واستكشف التخصصات، وتقدّم بالوتيرة التي تناسبك.',
+    library: 'مكتبة الفيديو', videos: 'فيديو متاح', categories: 'تخصصات للاستكشاف', semester: 'الفصل', general: 'جميع الفصول',
+    featured: 'للاكتشاف', watch: 'مشاهدة الفيديو', explore: 'استكشاف المكتبة', back: 'لوحة التحكم', all: 'استكشاف الكل',
+    search: 'ابحث عن مفهوم أو عنوان أو تخصص…', searchLabel: 'البحث في الفيديوهات', clearSearch: 'مسح البحث',
+    sort: 'ترتيب الفيديوهات', newest: 'الأحدث أولاً', oldest: 'الأقدم أولاً', titleSort: 'حسب العنوان', filter: 'التصفية حسب التخصص',
+    grid: 'عرض شبكي', list: 'عرض قائمة', results: 'نتيجة', reset: 'إعادة ضبط المرشحات',
+    empty: 'مكتبتك قيد التحضير.', emptyText: 'ستظهر هنا الفيديوهات المتاحة لفصلك. يمكنك استكشاف بقية الموارد في الأثناء.', courses: 'استكشاف الدروس',
+    noResults: 'لم تجد الفيديو المناسب؟', noResultsText: 'جرّب مفهوماً آخر أو وسّع اختيار التخصصات.',
+    error: 'المكتبة غير متاحة مؤقتاً.', errorText: 'تحقق من اتصالك ثم حاول مجدداً لاستعادة الفيديوهات.', retry: 'إعادة المحاولة', refresh: 'تحديث المكتبة', loading: 'جاري تحميل مكتبتك…',
+    uploaded: 'فيديو تعليمي', share: 'مشاركة', copied: 'تم نسخ الرابط', shareError: 'المشاركة غير متاحة في هذا المتصفح.',
+    tipTitle: 'شاهد. افهم. تذكّر.', tip: 'بعد الفيديو، اختبر معلوماتك باختبار أو بجلسة بطاقات تعليمية.', practice: 'الانتقال إلى الاختبارات', noTitle: 'فيديو بدون عنوان', noDescription: 'مفهوم جديد لاستكشافه وإثراء مراجعتك.',
+    categoryNames: { 'general-medicine': 'الطب العام', cardiology: 'أمراض القلب', pharmacy: 'الصيدلة', technology: 'التكنولوجيا الطبية', dentaire: 'صحة الأسنان', other: 'أخرى' },
+  },
+};
+
+const VideoArtwork = ({ video, title }) => {
+  const [failed, setFailed] = useState(false);
+  return <div className={`vl-art vl-art-${video.category === 'cardiology' ? 'rose' : video.category === 'pharmacy' ? 'teal' : 'blue'}`}>
+    <div className="vl-art-pattern" aria-hidden="true" />
+    <svg className="vl-wave" viewBox="0 0 420 140" fill="none" aria-hidden="true"><path d="M0 78h90l17-19 18 42 26-81 29 105 20-47h40l14-21 18 39 20-18h128" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" /></svg>
+    {video.youtubeId && !failed && <img src={`https://img.youtube.com/vi/${video.youtubeId}/hqdefault.jpg`} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />}
+    <span className="vl-play"><Play size={23} fill="currentColor" aria-hidden="true" /><span className="sr-only">{title}</span></span>
+    {video.duration && <span className="vl-duration">{video.duration}</span>}
+  </div>;
+};
 
 const Videos = () => {
   const { language } = useLanguage();
   const { user } = useAuth();
-  const [videos, setVideos] = useState([]);
+  const t = copy[language] || copy.fr;
+  const [records, setVideos] = useState([]);
+  const [loadedAccess, setLoadedAccess] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [retryCount, setRetryCount] = useState(0);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const searchInputRef = useRef(null);
-  const suggestionsRef = useRef(null);
-
-  const texts = useMemo(() => ({
-    fr: {
-      title: 'Bibliothèque Vidéo',
-      loading: 'Chargement des vidéos...',
-      error: 'Erreur lors du chargement des vidéos',
-      noVideos: 'Aucune vidéo disponible',
-      noResults: 'Aucun résultat trouvé pour votre recherche',
-      searchPlaceholder: 'Rechercher des vidéos...',
-      categories: {
-        all: 'Toutes les catégories',
-        cardiology: 'Cardiologie',
-        other: 'Autres',
-        dentaire: 'Santé dentaire',
-        'general-medicine': 'Médecine générale',
-        pharmacy: 'Pharmacie',
-        technology: 'Technologie médicale',
-      },
-      retry: 'Réessayer',
-      retrying: 'Tentative de reconnexion...',
-      noDescription: 'Aucune description disponible',
-      watchVideo: 'Regarder la vidéo',
-      shareVideo: 'Partager',
-      uploadedVideo: 'Vidéo téléchargée',
-      youtubeVideo: 'Vidéo YouTube',
-      watchOnYoutube: 'Voir sur YouTube',
-      clearSearch: 'Effacer la recherche',
-      refresh: 'Actualiser',
-      backToTop: 'Retour en haut',
-      categoryLabel: 'Filtrer par catégorie',
-      suggestionsLabel: 'Suggestions de recherche',
-    },
-    ar: {
-      title: 'مكتبة الفيديو',
-      loading: 'جاري تحميل الفيديوهات...',
-      error: 'خطأ في تحميل الفيديوهات',
-      noVideos: 'لا توجد فيديوهات متاحة',
-      noResults: 'لا توجد نتائج لبحثك',
-      searchPlaceholder: 'البحث عن الفيديوهات...',
-      categories: {
-        all: 'جميع الفئات',
-        'general-medicine': 'الطب العام',
-        cardiology: 'أمراض القلب',
-        pharmacy: 'الصيدلة',
-        technology: 'التكنولوجيا الطبية',
-        other: 'أخرى',
-        dentaire: 'الصحة الفموية',
-      },
-      retry: 'إعادة المحاولة',
-      retrying: 'جاري إعادة المحاولة...',
-      noDescription: 'لا يوجد وصف متاح',
-      watchVideo: 'مشاهدة الفيديو',
-      shareVideo: 'مشاركة',
-      uploadedVideo: 'فيديو مرفوع',
-      youtubeVideo: 'فيديو يوتيوب',
-      watchOnYoutube: 'مشاهدة على يوتيوب',
-      clearSearch: 'مسح البحث',
-      refresh: 'تحديث',
-      backToTop: 'العودة إلى الأعلى',
-      categoryLabel: 'تصفية حسب الفئة',
-      suggestionsLabel: 'اقتراحات البحث',
-    },
-  }), [language]);
-
-  const t = texts[language] || texts.fr;
-  const isRTL = language === 'ar';
-
-  const extractYouTubeId = useCallback((url) => {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : url;
-  }, []);
-
-  const isYouTubeUrl = useCallback((url) => {
-    if (!url) return false;
-    return /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/.test(url);
-  }, []);
-
-  const fetchVideos = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const documents = await getVisibleDocuments('videos', user);
-      const processedVideos = documents
-        .filter((doc) => doc.data().status !== 'inactive')
-        .map((doc) => {
-          const data = doc.data();
-          const category = data.category === 'médecine_générale' || data.category === 'pharmacie' ? 'other' : data.category || 'other';
-          const videoData = {
-            id: doc.id,
-            title: data.title || { fr: 'Titre non disponible', ar: 'عنوان غير متاح' },
-            description: data.description || { fr: '', ar: '' },
-            uploadedAt: data.uploadedAt,
-            uploadedBy: data.uploadedBy,
-            fileName: data.fileName || '',
-            fileSize: data.fileSize || 0,
-            fileType: data.fileType || '',
-            category,
-          };
-          const source = data.videoUrl || data.youtubeLink || data.url || '';
-          if (data.youtubeId || (source && isYouTubeUrl(source))) {
-            const youtubeId = data.youtubeId || extractYouTubeId(source);
-            if (youtubeId) {
-              return {
-                ...videoData,
-                youtubeId,
-                videoUrl: source || `https://www.youtube.com/watch?v=${youtubeId}`,
-                thumbnail: `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`,
-                type: 'youtube',
-              };
-            }
-          } else if (source || data.storagePath || data.filePath) {
-            return {
-              ...videoData,
-              videoUrl: source,
-              thumbnail: null,
-              type: 'uploaded',
-            };
-          }
-          return null;
-        })
-        .filter((video) => video !== null)
-        .sort((a, b) => (toDate(b.uploadedAt)?.getTime() || 0) - (toDate(a.uploadedAt)?.getTime() || 0));
-      setVideos(processedVideos);
-      setRetryCount(0);
-    } catch (err) {
-      let errorMessage = t.error;
-      if (err.code === 'permission-denied') {
-        errorMessage += ' (Accès refusé)';
-      } else if (err.code === 'unavailable') {
-        errorMessage += ' (Service indisponible)';
-      } else {
-        errorMessage += `: ${err.message}`;
-      }
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-      setIsRetrying(false);
-    }
-  }, [t.error, extractYouTubeId, isYouTubeUrl, user]);
-
-  const fetchSuggestions = useCallback(
-    debounce(async (term) => {
-      if (!term) {
-        setSuggestions([]);
-        return;
-      }
-      try {
-        const matchingTitles = videos
-          .filter((video) => {
-            const title = video.title?.[language] || video.title?.fr || '';
-            return title.toLowerCase().includes(term.toLowerCase());
-          })
-          .map((video) => video.title?.[language] || video.title?.fr)
-          .slice(0, 5);
-        setSuggestions(matchingTitles);
-      } catch (err) {
-        console.error('Erreur lors de la récupération des suggestions:', err);
-      }
-    }, 300),
-    [language, videos]
-  );
-
-  const handleRetry = useCallback(async () => {
-    if (retryCount >= 3) {
-      setError(t.error + ' (Nombre maximum de tentatives atteint)');
-      return;
-    }
-    setIsRetrying(true);
-    setRetryCount((prev) => prev + 1);
-    const delay = Math.pow(2, retryCount) * 1000;
-    setTimeout(() => {
-      fetchVideos();
-    }, delay);
-  }, [retryCount, fetchVideos, t.error]);
+  const [error, setError] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
+  const [sort, setSort] = useState('newest');
+  const [view, setView] = useState('grid');
+  const [shareStatus, setShareStatus] = useState({});
+  const accessUser = useMemo(() => ({ uid: user?.uid, semester: user?.semester, customClaims: { role: user?.customClaims?.role, adminAccessVersion: user?.customClaims?.adminAccessVersion, unlimitedAccess: user?.customClaims?.unlimitedAccess } }), [user?.uid, user?.semester, user?.customClaims?.role, user?.customClaims?.adminAccessVersion, user?.customClaims?.unlimitedAccess]);
+  const videos = useMemo(() => loadedAccess === accessUser ? records : [], [loadedAccess, accessUser, records]);
 
   useEffect(() => {
-    fetchVideos();
-  }, [fetchVideos]);
-
-  const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearchTerm(value);
-    fetchSuggestions(value);
-  };
-
-  const handleSuggestionClick = (suggestion) => {
-    setSearchTerm(suggestion);
-    setSuggestions([]);
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  };
-
-  const clearSearch = () => {
-    setSearchTerm('');
-    setSuggestions([]);
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  };
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const filteredVideos = useMemo(() => {
-    return videos.filter((video) => {
-      const title = video.title[language] || video.title.fr || '';
-      const description = video.description[language] || video.description.fr || '';
-      const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || video.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [videos, searchTerm, selectedCategory, language]);
-
-  const uniqueCategories = useMemo(() => {
-    const categories = new Set(videos.map((video) => video.category));
-    return ['all', ...categories].map((cat) => ({
-      key: cat,
-      label: t.categories[cat] || cat,
-    }));
-  }, [videos, t.categories]);
-
-  const formatFileSize = useCallback((bytes) => {
-    if (!bytes || bytes === 0) return '';
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
-  }, []);
-
-  const shareVideo = useCallback(async (video) => {
-    try {
-      const shareUrl = video.type === 'youtube' && video.youtubeId
-        ? `https://www.youtube.com/watch?v=${video.youtubeId}`
-        : video.videoUrl;
-      if (navigator.share && navigator.canShare({ url: shareUrl })) {
-        await navigator.share({
-          title: video.title[language] || video.title.fr,
-          text: video.description[language] || video.description.fr,
-          url: shareUrl,
-        });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(shareUrl);
-        alert(language === 'fr' ? 'Lien copié dans le presse-papiers' : 'تم نسخ الرابط إلى الحافظة');
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = shareUrl;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        alert(language === 'fr' ? 'Lien copié dans le presse-papiers' : 'تم نسخ الرابط إلى الحافظة');
+    let active = true;
+    setLoading(true); setError(false); setVideos([]);
+    getVisibleDocuments('videos', accessUser).then(documents => {
+      if (active) {
+        setVideos(documents.map(document => normalizeVideo(document.id, document.data())).filter(Boolean).sort((a, b) => (toDate(b.uploadedAt)?.getTime() || 0) - (toDate(a.uploadedAt)?.getTime() || 0)));
+        setLoadedAccess(accessUser);
       }
-    } catch (error) {
-      console.error('Erreur lors du partage:', error);
-      alert(language === 'fr' ? 'Erreur lors du partage' : 'خطأ أثناء المشاركة');
-    }
-  }, [language]);
+    }).catch(() => { if (active) setError(true); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [accessUser, refreshKey]);
 
-  const LoadingComponent = () => (
-    <main className={`flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 ${isRTL ? 'rtl' : 'ltr'}`}>
-      <div className="auth-container">
-        <div className="loading-spinner mb-4" aria-label={isRetrying ? t.retrying : t.loading}></div>
-        <p className="text-gray-600 text-lg font-medium">{isRetrying ? t.retrying : t.loading}</p>
-        {isRetrying && <p className="text-gray-500 text-sm mt-2">Tentative {retryCount}/3</p>}
-      </div>
-    </main>
-  );
+  const categories = useMemo(() => [...new Set(videos.map(video => video.category))], [videos]);
+  const filtered = useMemo(() => {
+    const term = videoSearchText(search);
+    return videos.filter(video => (category === 'all' || video.category === category) && videoSearchText(`${localizedVideoText(video.title, language)} ${localizedVideoText(video.description, language)} ${t.categoryNames[video.category] || video.category}`).includes(term)).sort((a, b) => sort === 'title' ? localizedVideoText(a.title, language).localeCompare(localizedVideoText(b.title, language), language === 'ar' ? 'ar' : 'fr') : ((toDate(b.uploadedAt)?.getTime() || 0) - (toDate(a.uploadedAt)?.getTime() || 0)) * (sort === 'oldest' ? -1 : 1));
+  }, [videos, category, search, sort, language, t.categoryNames]);
+  const featured = videos[0];
+  const reset = () => { setSearch(''); setCategory('all'); setSort('newest'); };
+  const categoryLabel = video => t.categoryNames[video.category] || video.category;
+  const title = video => localizedVideoText(video.title, language, t.noTitle);
 
-  const ErrorComponent = () => (
-    <main className={`flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 ${isRTL ? 'rtl' : 'ltr'}`}>
-      <div className="auth-container">
-        <div className="flex items-center mb-4">
-          <svg className="w-6 h-6 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="text-lg font-semibold text-red-500">Erreur de chargement</h3>
-        </div>
-        <p className="text-red-500 mb-4">{error}</p>
-        <button
-          onClick={handleRetry}
-          disabled={isRetrying || retryCount >= 3}
-          className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-disabled={isRetrying || retryCount >= 3}
-        >
-          {isRetrying ? t.retrying : t.retry}
-        </button>
-      </div>
-    </main>
-  );
+  const share = async video => {
+    const url = `${window.location.origin}/videos/${encodeURIComponent(video.id)}`;
+    try {
+      if (navigator.share) await navigator.share({ title: title(video), url });
+      else if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(url); setShareStatus({ id: video.id, message: t.copied }); }
+      else setShareStatus({ id: video.id, message: t.shareError });
+    } catch (err) { if (err.name !== 'AbortError') setShareStatus({ id: video.id, message: t.shareError }); }
+  };
 
-  const VideoCard = ({ video }) => (
-    <div className="group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-blue-200">
-      <div className="relative">
-        {video.type === 'youtube' ? (
-          <>
-            <iframe
-              width="100%"
-              height="240"
-              src={`https://www.youtube.com/embed/${video.youtubeId}?rel=0`}
-              title={video.title[language] || video.title.fr}
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              loading="lazy"
-              className="rounded-t-xl"
-            />
-            <div className="absolute top-3 left-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg flex items-center backdrop-blur-sm">
-              <svg className="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-              </svg>
-              YouTube
-            </div>
-          </>
-        ) : (
-          <>
-            <video
-              width="100%"
-              height="240"
-              controls
-              preload="metadata"
-              className="rounded-t-xl bg-black"
-              poster={video.thumbnail}
-            >
-              <source src={video.videoUrl} type={video.fileType || 'video/mp4'} />
-              {language === 'fr' ? 'Votre navigateur ne supporte pas la lecture vidéo.' : 'متصفحك لا يدعم تشغيل الفيديو.'}
-            </video>
-            <div className="absolute top-3 left-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-lg flex items-center backdrop-blur-sm">
-              <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-              </svg>
-              {language === 'fr' ? 'Local' : 'محلي'}
-            </div>
-          </>
-        )}
-      </div>
-      
-      <div className="p-6">
-        <div className="mb-4">
-          <h3 className="font-bold text-xl text-gray-900 mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors leading-tight">
-            {video.title[language] || video.title.fr}
-          </h3>
-          <p className="text-gray-600 text-sm mb-4 line-clamp-3 leading-relaxed">
-            {video.description[language] || video.description.fr || t.noDescription}
-          </p>
-        </div>
+  return <div className="video-library" dir={language === 'ar' ? 'rtl' : 'ltr'}><div className="vl-container">
+    <div className="vl-page-label"><span><Video size={18} aria-hidden="true" />{t.library}</span><Link to="/dashboard">{t.back}<ArrowRight size={15} aria-hidden="true" /></Link></div>
+    <section className="vl-hero" aria-labelledby="vl-title"><div className="vl-hero-copy">
+      <span className="vl-eyebrow"><span />{t.eyebrow}</span><h1 id="vl-title">{t.title}</h1><p>{t.subtitle}</p>
+      <a href="#video-catalog" className="vl-button vl-button-light"><Play size={17} fill="currentColor" aria-hidden="true" />{t.explore}<ArrowRight size={17} aria-hidden="true" /></a>
+      <div className="vl-hero-stats" aria-busy={loading}><div><strong>{loading || error ? '—' : videos.length}</strong><span>{t.videos}</span></div><div><strong>{loading || error ? '—' : categories.length}</strong><span>{t.categories}</span></div>{user?.semester && <div><strong>S{user.semester}</strong><span>{t.semester}</span></div>}</div>
+    </div>{featured && !loading && !error ? <Link to={`/videos/${encodeURIComponent(featured.id)}`} className="vl-featured"><VideoArtwork key={featured.id} video={featured} title={t.watch} /><div className="vl-featured-copy"><span><Sparkles size={13} aria-hidden="true" />{t.featured} · {categoryLabel(featured)}</span><h2>{title(featured)}</h2><span className="vl-featured-action">{t.watch}<ArrowRight size={16} aria-hidden="true" /></span></div></Link> : <div className="vl-hero-illustration" aria-hidden="true"><div className="vl-illustration-ring" /><div className="vl-illustration-card"><Video size={46} strokeWidth={1.3} /><div /><div /><span><Play size={16} fill="currentColor" /></span></div><span className="vl-illustration-float"><BookOpen size={23} /></span><span className="vl-illustration-float"><Layers size={23} /></span></div>}</section>
 
-        {/* Info section avec design amélioré */}
-        <div className="flex items-center justify-between mb-5 pb-4 border-b border-gray-100">
-          <div className="flex items-center space-x-3">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-100">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              {t.categories[video.category] || video.category}
-            </span>
-          </div>
-          {video.fileSize > 0 && (
-            <span className="text-xs text-gray-500 font-medium bg-gray-50 px-2 py-1 rounded-md">
-              {formatFileSize(video.fileSize)}
-            </span>
-          )}
-        </div>
-
-        {video.fileName && (
-          <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-100">
-            <p className="text-xs text-gray-600 flex items-center" title={video.fileName}>
-              <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="truncate font-medium">{video.fileName}</span>
-            </p>
-          </div>
-        )}
-
-        {/* Boutons redessinés */}
-        <div className="flex flex-col space-y-3">
-          {/* Bouton principal */}
-          <NavLink
-            to={`/videos/${video.id}`}
-            className="group/btn flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-md hover:shadow-lg"
-            aria-label={t.watchVideo}
-          >
-            <svg className="w-5 h-5 mr-2 group-hover/btn:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            {t.watchVideo}
-          </NavLink>
-
-          {/* Boutons secondaires */}
-          <div className="flex space-x-2">
-            {video.type === 'youtube' && (
-              <a
-                href={`https://www.youtube.com/watch?v=${video.youtubeId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group/youtube flex-1 flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 text-red-600 font-medium rounded-lg transition-all duration-200 border border-red-200 hover:border-red-300"
-                aria-label={t.watchOnYoutube}
-              >
-                <svg className="w-4 h-4 mr-2 group-hover/youtube:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                </svg>
-                <span className="hidden sm:inline">YouTube</span>
-              </a>
-            )}
-            
-            <button
-              onClick={() => shareVideo(video)}
-              className="group/share flex items-center justify-center px-4 py-2.5 bg-gradient-to-r from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 text-gray-600 font-medium rounded-lg transition-all duration-200 border border-gray-200 hover:border-gray-300 min-w-[44px]"
-              aria-label={t.shareVideo}
-            >
-              <svg className="w-4 h-4 group-hover/share:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-              </svg>
-              <span className="hidden sm:inline sm:ml-2">{t.shareVideo}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  if (loading) return <LoadingComponent />;
-  if (error) return <ErrorComponent />;
-
-  return (
-    <main className={`flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 ${isRTL ? 'rtl' : 'ltr'}`} aria-labelledby="videos-title">
-      <header className="mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
-          <h1 id="videos-title" className="text-4xl font-bold text-gray-900 mb-4 md:mb-0">{t.title}</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-lg text-gray-700 font-medium">
-              {filteredVideos.length} {language === 'fr' ? 'vidéo' : 'فيديو'}{filteredVideos.length !== 1 ? language === 'fr' ? 's' : '' : ''}
-            </span>
-            <button
-              onClick={fetchVideos}
-              disabled={loading}
-              className="btn-secondary p-3"
-              title={t.refresh}
-              aria-label={t.refresh}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <section className="video-controls mb-6" role="search" aria-label={t.searchPlaceholder}>
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <input
-              type="search"
-              placeholder={t.searchPlaceholder}
-              value={searchTerm}
-              onChange={handleSearchChange}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  searchInputRef.current?.focus();
-                } else if (e.key === 'ArrowDown' && suggestions.length > 0) {
-                  suggestionsRef.current?.children[0]?.focus();
-                }
-              }}
-              ref={searchInputRef}
-              className="form-input w-full pl-10 pr-10"
-              aria-label={t.searchPlaceholder}
-              aria-controls="videos-grid"
-            />
-            <svg
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {searchTerm && (
-              <button
-                onClick={clearSearch}
-                className="btn-secondary absolute right-3 top-1/2 transform -translate-y-1/2 p-2"
-                aria-label={t.clearSearch}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-            {suggestions.length > 0 && (
-              <ul
-                ref={suggestionsRef}
-                className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-2 max-h-60 overflow-y-auto"
-                role="listbox"
-                aria-label={t.suggestionsLabel}
-              >
-                {suggestions.map((suggestion, index) => (
-                  <li
-                    key={index}
-                    tabIndex={0}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSuggestionClick(suggestion);
-                      if (e.key === 'ArrowDown' && index < suggestions.length - 1) {
-                        suggestionsRef.current.children[index + 1].focus();
-                      }
-                      if (e.key === 'ArrowUp' && index > 0) {
-                        suggestionsRef.current.children[index - 1].focus();
-                      }
-                    }}
-                    className="px-4 py-2 text-gray-800 hover:bg-gray-100 cursor-pointer"
-                    role="option"
-                    aria-selected={searchTerm === suggestion}
-                  >
-                    {suggestion}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="md:hidden">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="form-input w-full"
-              aria-label={t.categoryLabel}
-            >
-              {uniqueCategories.map(({ key, label }) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="hidden md:flex flex-wrap gap-2">
-            {uniqueCategories.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setSelectedCategory(key)}
-                className={`category-button text-sm ${selectedCategory === key ? 'active' : ''}`}
-                aria-label={`${t.categoryLabel}: ${label}`}
-                aria-pressed={selectedCategory === key}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="videos-grid" aria-live="polite">
-        {filteredVideos.length === 0 ? (
-          <div className="auth-container text-center py-12">
-            <svg className="w-20 h-20 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            <h3 className="text-xl font-semibold text-gray-800 mb-3">
-              {searchTerm || selectedCategory !== 'all' ? t.noResults : t.noVideos}
-            </h3>
-            {searchTerm && (
-              <button
-                onClick={clearSearch}
-                className="btn-secondary"
-                aria-label={t.clearSearch}
-              >
-                {t.clearSearch}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredVideos.map((video) => (
-              <VideoCard key={video.id} video={video} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {filteredVideos.length > 3 && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-4 right-4 btn-primary p-3 rounded-full shadow-lg"
-          aria-label={t.backToTop}
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-          </svg>
-        </button>
-      )}
-    </main>
-  );
+    <section id="video-catalog" className="vl-catalog" aria-labelledby="vl-catalog-title">
+      <div className="vl-section-title"><div><span className="vl-kicker">{t.library}</span><h2 id="vl-catalog-title">{t.all}</h2></div><button type="button" className="vl-icon-button" disabled={loading} onClick={() => setRefreshKey(key => key + 1)} aria-label={t.refresh} title={t.refresh}><RefreshCw size={18} className={loading ? 'vl-spinning' : ''} aria-hidden="true" /></button></div>
+      <div className="vl-toolbar"><div className="vl-search"><Search size={20} aria-hidden="true" /><label htmlFor="video-search" className="sr-only">{t.searchLabel}</label><input id="video-search" type="search" placeholder={t.search} value={search} onChange={event => setSearch(event.target.value)} />{search && <button type="button" onClick={() => setSearch('')} aria-label={t.clearSearch}><X size={17} aria-hidden="true" /></button>}</div><div className="vl-sort"><ArrowDownWideNarrow size={17} aria-hidden="true" /><label htmlFor="video-sort" className="sr-only">{t.sort}</label><select id="video-sort" value={sort} onChange={event => setSort(event.target.value)}><option value="newest">{t.newest}</option><option value="oldest">{t.oldest}</option><option value="title">{t.titleSort}</option></select></div></div>
+      <div className="vl-filters-row"><div className="vl-filters" role="group" aria-label={t.filter}><button type="button" className={category === 'all' ? 'is-active' : ''} aria-pressed={category === 'all'} onClick={() => setCategory('all')}><SlidersHorizontal size={14} aria-hidden="true" />{t.all}<span>{videos.length}</span></button>{categories.map(key => <button type="button" key={key} className={category === key ? 'is-active' : ''} aria-pressed={category === key} onClick={() => setCategory(key)}>{t.categoryNames[key] || key}<span>{videos.filter(video => video.category === key).length}</span></button>)}</div><div className="vl-view" role="group" aria-label={t.library}><button type="button" aria-label={t.grid} aria-pressed={view === 'grid'} onClick={() => setView('grid')}><Grid2X2 size={17} aria-hidden="true" /></button><button type="button" aria-label={t.list} aria-pressed={view === 'list'} onClick={() => setView('list')}><List size={19} aria-hidden="true" /></button></div></div>
+      <div className="vl-results-bar"><p role="status">{loading ? t.loading : error ? '' : `${filtered.length} ${t.results}`}</p>{(search || category !== 'all') && <button type="button" onClick={reset}>{t.reset}<X size={13} aria-hidden="true" /></button>}</div>
+      {loading ? <div className="vl-grid" aria-hidden="true">{[0, 1, 2, 3, 4, 5].map(index => <div key={index} className="vl-skeleton"><div /><span /><span /><span /></div>)}</div> : error ? <div className="vl-empty" role="alert"><RefreshCw size={32} aria-hidden="true" /><h3>{t.error}</h3><p>{t.errorText}</p><button type="button" className="vl-button" onClick={() => setRefreshKey(key => key + 1)}>{t.retry}<ArrowRight size={16} aria-hidden="true" /></button></div> : !filtered.length ? <div className="vl-empty"><Film size={36} aria-hidden="true" /><h3>{videos.length ? t.noResults : t.empty}</h3><p>{videos.length ? t.noResultsText : t.emptyText}</p>{videos.length ? <button type="button" className="vl-button" onClick={reset}>{t.reset}</button> : <Link to="/courses" className="vl-button">{t.courses}<ArrowRight size={16} aria-hidden="true" /></Link>}</div> : <div className={`vl-grid ${view === 'list' ? 'vl-list' : ''}`}>{filtered.map(video => <article key={video.id} className="vl-card">
+        <Link to={`/videos/${encodeURIComponent(video.id)}`} className="vl-card-art" aria-label={`${t.watch} : ${title(video)}`}><VideoArtwork video={video} title={t.watch} /><span className="vl-source">{video.type === 'youtube' ? 'YouTube' : <><Video size={12} aria-hidden="true" />{t.uploaded}</>}</span></Link>
+        <div className="vl-card-body"><div className="vl-card-meta"><span className="vl-category">{categoryLabel(video)}</span>{video.semester && <span>{video.semester === 'all' ? t.general : `S${video.semester}`}</span>}</div><h3><Link to={`/videos/${encodeURIComponent(video.id)}`}>{title(video)}</Link></h3><p className="vl-description">{localizedVideoText(video.description, language, t.noDescription)}</p><div className="vl-card-footer"><Link to={`/videos/${encodeURIComponent(video.id)}`} className="vl-watch"><Play size={14} fill="currentColor" aria-hidden="true" />{t.watch}<ArrowRight size={15} aria-hidden="true" /></Link><button type="button" className="vl-icon-button" onClick={() => share(video)} aria-label={`${t.share} : ${title(video)}`} title={t.share}>{shareStatus.id === video.id && shareStatus.message === t.copied ? <Check size={16} aria-hidden="true" /> : <Share2 size={16} aria-hidden="true" />}</button></div>{shareStatus.id === video.id && <p className="vl-share-status" role="status">{shareStatus.message}</p>}</div>
+      </article>)}</div>}
+    </section>
+    <aside className="vl-study-tip"><div className="vl-tip-icon"><Layers size={25} aria-hidden="true" /></div><div><h2>{t.tipTitle}</h2><p>{t.tip}</p></div><Link to="/quizzes">{t.practice}<ArrowRight size={17} aria-hidden="true" /></Link></aside>
+  </div></div>;
 };
 
 export default Videos;
