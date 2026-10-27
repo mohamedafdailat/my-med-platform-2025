@@ -1,1239 +1,1243 @@
-import ContentPublication from '../components/ContentPublication';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useLanguage } from '../contexts/LanguageContext';
-import { useAuth } from '../contexts/AuthContext';
-import { db } from '../firebase';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { useNavigate } from "react-router-dom";
+import { deleteDoc, doc } from "firebase/firestore";
+import { useLanguage } from "../contexts/LanguageContext";
+import { useAuth } from "../contexts/AuthContext";
+import { db } from "../firebase";
+import ContentPublication from "../components/ContentPublication";
+import FlashcardGenerator from "./FlashcardGenerator";
+import { getVisibleDocuments } from "../services/contentService";
+import { hasAdminAccess } from "../utils/access";
 import {
-  deleteDoc,
-  doc,
-  updateDoc,
-} from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import FlashcardGenerator from './FlashcardGenerator';
-import { getVisibleDocuments } from '../services/contentService';
+  FLASHCARD_CATEGORIES,
+  flashcardSearchText,
+  normalizeFlashcardDeck,
+  orderFlashcardDecks,
+  flashcardSessionCounts,
+} from "../utils/flashcards";
+import { flashcardLabel } from "../utils/flashcardLabels";
 import {
+  ArrowRight,
   ChevronLeft,
   ChevronRight,
   Eye,
   RotateCcw,
   Shuffle,
-  Home,
   CheckCircle,
   XCircle,
   AlertCircle,
-  Clock,
+  Clock3,
   Trophy,
   Target,
   Plus,
   Trash2,
   Search,
   BookOpen,
-} from 'lucide-react';
+  Layers,
+  Sparkles,
+  LockKeyhole,
+  Library,
+  FileText,
+  X,
+  RefreshCw,
+  Check,
+  SlidersHorizontal,
+  Keyboard,
+  ArrowLeft,
+} from "lucide-react";
+import "../styles/flashcard-library.css";
 
-const LOCAL_THUMBNAILS = {
-  anatomy: '/image1.png',
-  physiology: '/image2.png',
-  pharmacology: '/image3.png',
-  general: '/image4.png',
-  clinical: '/image5.png',
-  public_health: '/image6.png',
-  terminology: '/image7.png',
-  other: '/image8.png',
-};
-
-const TRANSLATIONS = {
-  fr: {
-    title: 'Flashcards médicales',
-    subtitle: 'Révisez efficacement avec des decks interactifs et des cartes générées par IA.',
-    searchPlaceholder: 'Rechercher un deck...',
-    createFromPDF: 'Générer depuis PDF',
-    study: 'Étudier',
-    cards: 'cartes',
-    delete: 'Supprimer',
-    noDecks: 'Aucun deck trouvé.',
-    myDecks: 'Mes decks personnalisés',
-    defaultDecks: 'Bibliothèque partagée',
-    createdOn: 'Créé le',
-    difficulty: 'Difficulté',
-    easy: 'Facile',
-    medium: 'Moyen',
-    hard: 'Difficile',
-    subscriptionRequired: 'Un abonnement payant est requis.',
-    loading: 'Chargement...',
-    confirmDelete: 'Êtes-vous sûr de vouloir supprimer ce deck ?',
-    deleteError: 'Erreur lors de la suppression.',
-    loadError: 'Erreur lors du chargement des decks personnalisés.',
-    noCardsError: 'Ce deck ne contient aucune carte.',
-    invalidFormat: 'Erreur : format de cartes invalide.',
-    next: 'Suivant',
-    prev: 'Précédent',
-    showAnswer: 'Voir la réponse',
-    hideAnswer: 'Masquer la réponse',
-    finish: 'Terminer',
-    back: 'Retour',
-    reset: 'Recommencer',
-    shuffle: 'Mélanger',
-    question: 'Question',
-    answer: 'Réponse',
-    correct: 'Correct',
-    incorrect: 'Incorrect',
-    skip: 'Passer',
-    progress: 'Progression',
-    timeSpent: 'Temps passé',
-    accuracy: 'Précision',
-    studyComplete: 'Étude terminée !',
-    congratulations: 'Félicitations !',
-    studyAgain: 'Étudier à nouveau',
-    autoAdvance: 'Avancement automatique',
-    category: 'Catégorie',
-    cardOf: 'sur',
-    minutes: 'min',
-    seconds: 's',
-    subscribe: 'S’abonner',
-    personalized: 'Personnalisé',
-    default: 'Par défaut',
-    deckWithoutTitle: 'Deck sans titre',
-    questionUnavailable: 'Question non disponible',
-    answerUnavailable: 'Réponse non disponible',
-    keyboardShortcuts:
-      'Raccourcis : Space/Enter = afficher la réponse | ←/→ = navigation | 1/2/3 = évaluer',
-    noResultMessage:
-      'Aucun deck ne correspond à votre recherche. Modifiez vos critères ou générez un deck depuis un PDF.',
-    anatomy: 'Anatomie',
-    physiology: 'Physiologie',
-    pharmacology: 'Pharmacologie',
-    general: 'Général',
-    clinical: 'Pratique clinique',
-    public_health: 'Santé publique',
-    terminology: 'Terminologie',
-    other: 'Autre',
-    all: 'Tous',
-    humanAnatomy: 'Anatomie humaine',
-    humanAnatomyDesc: 'Apprenez les principaux termes et structures anatomiques.',
-    pharmacologyDeck: 'Pharmacologie',
-    pharmacologyDeckDesc: 'Révisez les médicaments, indications et mécanismes d’action.',
-    physiologyDeck: 'Physiologie respiratoire',
-    physiologyDeckDesc: 'Comprenez les bases du fonctionnement respiratoire.',
-  },
-  ar: {
-    title: 'البطاقات التعليمية الطبية',
-    subtitle: 'راجع بفعالية من خلال مجموعات تفاعلية وبطاقات مولدة بالذكاء الاصطناعي.',
-    searchPlaceholder: 'ابحث عن مجموعة...',
-    createFromPDF: 'إنشاء من PDF',
-    study: 'دراسة',
-    cards: 'بطاقات',
-    delete: 'حذف',
-    noDecks: 'لم يتم العثور على مجموعات.',
-    myDecks: 'مجموعاتي المخصصة',
-    defaultDecks: 'المكتبة المشتركة',
-    createdOn: 'تم إنشاؤه في',
-    difficulty: 'الصعوبة',
-    easy: 'سهل',
-    medium: 'متوسط',
-    hard: 'صعب',
-    subscriptionRequired: 'مطلوب اشتراك مدفوع.',
-    loading: 'جاري التحميل...',
-    confirmDelete: 'هل أنت متأكد من حذف هذه المجموعة؟',
-    deleteError: 'خطأ أثناء الحذف.',
-    loadError: 'خطأ أثناء تحميل المجموعات المخصصة.',
-    noCardsError: 'هذه المجموعة لا تحتوي على بطاقات.',
-    invalidFormat: 'خطأ: تنسيق البطاقات غير صالح.',
-    next: 'التالي',
-    prev: 'السابق',
-    showAnswer: 'إظهار الإجابة',
-    hideAnswer: 'إخفاء الإجابة',
-    finish: 'إنهاء',
-    back: 'رجوع',
-    reset: 'إعادة البدء',
-    shuffle: 'خلط',
-    question: 'سؤال',
-    answer: 'إجابة',
-    correct: 'صحيح',
-    incorrect: 'خاطئ',
-    skip: 'تخطي',
-    progress: 'التقدم',
-    timeSpent: 'الوقت المستغرق',
-    accuracy: 'الدقة',
-    studyComplete: 'انتهت الدراسة!',
-    congratulations: 'تهانينا!',
-    studyAgain: 'الدراسة مرة أخرى',
-    autoAdvance: 'التقدم التلقائي',
-    category: 'الفئة',
-    cardOf: 'من',
-    minutes: 'د',
-    seconds: 'ث',
-    subscribe: 'الاشتراك',
-    personalized: 'مخصص',
-    default: 'افتراضي',
-    deckWithoutTitle: 'مجموعة بدون عنوان',
-    questionUnavailable: 'السؤال غير متوفر',
-    answerUnavailable: 'الإجابة غير متوفرة',
-    keyboardShortcuts:
-      'اختصارات: Space/Enter = إظهار الإجابة | ←/→ = التنقل | 1/2/3 = التقييم',
-    noResultMessage:
-      'لا توجد مجموعة توافق البحث. غيّر معايير البحث أو أنشئ مجموعة من PDF.',
-    anatomy: 'التشريح',
-    physiology: 'علم وظائف الأعضاء',
-    pharmacology: 'علم الأدوية',
-    general: 'عام',
-    clinical: 'الممارسة السريرية',
-    public_health: 'الصحة العامة',
-    terminology: 'المصطلحات',
-    other: 'أخرى',
-    all: 'الكل',
-    humanAnatomy: 'التشريح البشري',
-    humanAnatomyDesc: 'تعلم المصطلحات والبنيات التشريحية الأساسية.',
-    pharmacologyDeck: 'علم الأدوية',
-    pharmacologyDeckDesc: 'راجع الأدوية والاستطبابات وآليات العمل.',
-    physiologyDeck: 'فيزيولوجيا الجهاز التنفسي',
-    physiologyDeckDesc: 'افهم أساسيات عمل الجهاز التنفسي.',
-  },
-};
+const DeckCard = ({
+  deck,
+  t,
+  language,
+  onStudy,
+  onDelete,
+  canDelete,
+  canPublish,
+  onPublished,
+  deleting,
+}) => (
+  <article
+    className={`fcl-deck fcl-theme-${deck.category}`}
+    data-deck-id={deck.id}
+    aria-label={deck.title}
+  >
+    <div className="fcl-deck-art" aria-hidden="true">
+      <span className="fcl-art-category">{t(deck.category)}</span>
+      <span className="fcl-art-stack">
+        <Layers size={22} />
+        <span>{deck.cards[0].front}</span>
+      </span>
+      <span className="fcl-art-caption">{t("preview")}</span>
+    </div>
+    <div className="fcl-deck-body">
+      <div className="fcl-deck-labels">
+        <span
+          className={`fcl-badge ${deck.visibility === "shared" ? "fcl-badge-shared" : ""}`}
+        >
+          {deck.visibility === "shared" ? (
+            <Library size={12} aria-hidden="true" />
+          ) : (
+            <LockKeyhole size={12} aria-hidden="true" />
+          )}
+          {t(deck.visibility === "shared" ? "shared" : "private")}
+        </span>
+        {deck.status === "inactive" && (
+          <span className="fcl-badge">{t("inactive")}</span>
+        )}
+      </div>
+      <h3>{deck.title}</h3>
+      <p className="fcl-deck-description">
+        {deck.description || t("deckDescription")}
+      </p>
+      <div className="fcl-deck-meta">
+        <span>
+          <Layers size={14} aria-hidden="true" />
+          {deck.cardCount} {t("cards")}
+        </span>
+        <span className={`fcl-difficulty fcl-difficulty-${deck.difficulty}`}>
+          {t(deck.difficulty)}
+        </span>
+      </div>
+      {deck.createdAt && (
+        <p className="fcl-deck-date">
+          {t("createdOn")}{" "}
+          <time dateTime={deck.createdAt.toISOString()}>
+            {deck.createdAt.toLocaleDateString(
+              language === "ar" ? "ar-MA" : "fr-FR",
+              { day: "numeric", month: "short", year: "numeric" },
+            )}
+          </time>
+        </p>
+      )}
+      <div className="fcl-deck-actions">
+        <button
+          type="button"
+          className="fcl-button fcl-button-study"
+          onClick={() => onStudy(deck)}
+        >
+          <BookOpen size={16} aria-hidden="true" />
+          {t("study")}
+          <ArrowRight
+            size={16}
+            className="fcl-directional"
+            aria-hidden="true"
+          />
+        </button>
+        {canDelete && (
+          <button
+            type="button"
+            className="fcl-icon-button fcl-delete"
+            disabled={deleting}
+            onClick={() => onDelete(deck.id)}
+            aria-label={`${t("delete")} : ${deck.title}`}
+            title={t("delete")}
+          >
+            <Trash2 size={17} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      {canPublish && (
+        <div className="fcl-publication">
+          <ContentPublication
+            collectionName="flashcards"
+            item={deck}
+            language={language}
+            onUpdated={onPublished}
+          />
+        </div>
+      )}
+    </div>
+  </article>
+);
 
 const Flashcards = () => {
   const { language } = useLanguage();
-  const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-
-  const isRTL = language === 'ar';
-
-  const t = useCallback(
-    (key) => TRANSLATIONS[language]?.[key] || TRANSLATIONS.fr[key] || key,
-    [language]
-  );
-
-  const [view, setView] = useState('list');
-  const [selectedDeck, setSelectedDeck] = useState(null);
-
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [customDecks, setCustomDecks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
-  const [shuffledIndices, setShuffledIndices] = useState([]);
-  const [isShuffled, setIsShuffled] = useState(false);
-  const [studyStats, setStudyStats] = useState({
-    correct: 0,
-    incorrect: 0,
-    skipped: 0,
-    startTime: Date.now(),
-    cardProgress: [],
+  const navigate = useNavigate();
+  const isRTL = language === "ar";
+  const t = useCallback((key) => flashcardLabel(key, language), [language]);
+  const uid = user?.uid;
+  const role = user?.customClaims?.role;
+  const adminAccessVersion = user?.customClaims?.adminAccessVersion;
+  const unlimited = user?.customClaims?.unlimitedAccess === true;
+  const semester = user?.semester;
+  const administrator = hasAdminAccess(user?.customClaims);
+  const isStudent =
+    role === "student" || (!role && (!user?.role || user.role === "student"));
+  const hasAccess =
+    !!uid &&
+    !authLoading &&
+    (administrator ||
+      unlimited ||
+      (isStudent && user?.subscriptionStatus === "paid"));
+  const accessKey = JSON.stringify([
+    uid,
+    role,
+    adminAccessVersion,
+    unlimited,
+    semester,
+    hasAccess,
+  ]);
+  const activeAccess = useRef(accessKey);
+  activeAccess.current = accessKey;
+  const requestVersion = useRef(0);
+  const advanceTimer = useRef(null);
+  const headingRef = useRef(null);
+  const [library, setLibrary] = useState({
+    key: null,
+    items: [],
+    loading: true,
+    error: "",
   });
-  const [autoAdvance, setAutoAdvance] = useState(false);
+  const [viewState, setViewState] = useState({ key: null, name: "list" });
+  const view =
+    viewState.key === accessKey && hasAccess ? viewState.name : "list";
+  const setView = useCallback(
+    (name) => setViewState({ key: accessKey, name }),
+    [accessKey],
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedDifficulty, setSelectedDifficulty] = useState("all");
+  const [scope, setScope] = useState("all");
+  const [sort, setSort] = useState("recent");
+  const [deletingId, setDeletingId] = useState(null);
+  const [selectedSource, setSelectedSource] = useState(null);
+  const [order, setOrder] = useState([]);
+  const [cardIndex, setCardIndex] = useState(0);
+  const [showAnswer, setShowAnswer] = useState(false);
+  const [responses, setResponses] = useState([]);
+  const [startedAt, setStartedAt] = useState(null);
+  const [finishedAt, setFinishedAt] = useState(null);
+  const [now, setNow] = useState(Date.now());
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const [isShuffled, setIsShuffled] = useState(false);
+  const [pendingAdvance, setPendingAdvance] = useState(false);
   const [studyComplete, setStudyComplete] = useState(false);
 
-  const categories = useMemo(
-    () => [
-      { id: 'all', label: t('all') },
-      { id: 'anatomy', label: t('anatomy') },
-      { id: 'physiology', label: t('physiology') },
-      { id: 'pharmacology', label: t('pharmacology') },
-      { id: 'general', label: t('general') },
-      { id: 'clinical', label: t('clinical') },
-      { id: 'public_health', label: t('public_health') },
-      { id: 'terminology', label: t('terminology') },
-      { id: 'other', label: t('other') },
-    ],
-    [t]
-  );
+  useEffect(() => {
+    setDeletingId(null);
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSelectedDifficulty("all");
+    setScope("all");
+  }, [accessKey]);
 
-
-  const isAdmin = useCallback((currentUser) => {
-    return (
-      currentUser?.role === 'admin' ||
-      currentUser?.customClaims?.role === 'admin'
-    );
-  }, []);
-
-  const isAuthenticatedAndPaid = useCallback(() => {
-    if (authLoading || !user) return false;
-
-    const isStudent =
-      user?.role === 'student' ||
-      user?.customClaims?.role === 'student' ||
-      (!user?.role && !user?.customClaims?.role);
-
-    return isAdmin(user) || user.customClaims?.unlimitedAccess === true || (isStudent && user.subscriptionStatus === 'paid');
-  }, [authLoading, user, isAdmin]);
-
-  const normalizeText = useCallback((value, fallback) => {
-    if (!value) return fallback;
-
-    if (typeof value === 'string') return value;
-
-    if (typeof value === 'object') {
-      return value[language] || value.fr || value.ar || fallback;
+  const fetchDecks = useCallback(async () => {
+    const version = ++requestVersion.current;
+    if (authLoading) return;
+    if (!hasAccess) {
+      setLibrary({ key: accessKey, items: [], loading: false, error: "" });
+      return;
     }
-
-    return String(value);
-  }, [language]);
-
-  const transformFlashcardData = useCallback(
-    (rawCard, index = 0) => {
-      if (!rawCard || typeof rawCard !== 'object') return null;
-
-      const front = normalizeText(
-        rawCard.question || rawCard.front || rawCard.prompt,
-        t('questionUnavailable')
-      );
-
-      const back = normalizeText(
-        rawCard.answer || rawCard.back || rawCard.response,
-        t('answerUnavailable')
-      );
-
-      if (
-        !front ||
-        !back ||
-        front === t('questionUnavailable') ||
-        back === t('answerUnavailable')
-      ) {
-        return null;
-      }
-
-      return {
-        id: rawCard.id || `card-${index}-${Math.random().toString(36).slice(2, 9)}`,
-        front,
-        back,
-        difficulty: rawCard.difficulty || 'medium',
-        category: rawCard.category || 'general',
-        conceptSource: rawCard.concept_source || rawCard.conceptSource || null,
-      };
-    },
-    [normalizeText, t]
-  );
-
-  const getDeckCards = useCallback(
-    (data) => {
-      const possibleCards = data?.cards || data?.flashcards || data?.items || (data?.question ? [data] : []);
-      if (!Array.isArray(possibleCards)) return [];
-
-      return possibleCards
-        .map((card, index) => transformFlashcardData(card, index))
-        .filter(Boolean);
-    },
-    [transformFlashcardData]
-  );
-
-  const getFirestoreDate = useCallback((value) => {
-    if (!value) return new Date();
-
-    if (value?.toDate) return value.toDate();
-
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-  }, []);
-
-  const removeDuplicateDecks = useCallback((decks) => {
-    const seen = new Map();
-
-    decks.forEach((deck) => {
-      if (!deck) return;
-
-      const key = deck.id;
-      const existing = seen.get(key);
-
-      if (!existing || (deck.cards?.length || 0) > (existing.cards?.length || 0)) {
-        seen.set(key, deck);
-      }
-    });
-
-    return Array.from(seen.values());
-  }, []);
-
-  const fetchCustomDecks = useCallback(async () => {
-    setLoading(true);
-
+    setLibrary({ key: accessKey, items: [], loading: true, error: "" });
     try {
-      if (!isAuthenticatedAndPaid()) {
-        setCustomDecks([]);
-        setError('');
+      const accessUser = {
+        uid,
+        semester,
+        customClaims: { role, adminAccessVersion, unlimitedAccess: unlimited },
+      };
+      const documents = await getVisibleDocuments("flashcards", accessUser);
+      if (
+        version !== requestVersion.current ||
+        activeAccess.current !== accessKey
+      )
         return;
-      }
-
-      const auth = getAuth();
-      const userId = auth.currentUser?.uid || user?.uid;
-
-      if (!userId) {
-        setCustomDecks([]);
-        setError('');
-        return;
-      }
-
-      const documents = await getVisibleDocuments('flashcards', user);
-
-      const decks = documents
-        .map((snapshot) => {
-          const data = snapshot.data();
-          const cards = getDeckCards(data);
-
-          if (cards.length === 0) return null;
-
-          const semester = data.semester || null;
-
-          const category = data.category || cards[0]?.category || 'general';
-
-          return {
-            id: snapshot.id,
-            title: normalizeText(data.title, t('deckWithoutTitle')),
-            description: normalizeText(data.description, ''),
-            category,
-            difficulty: data.difficulty || cards[0]?.difficulty || 'medium',
-            cardCount: cards.length,
-            createdAt: getFirestoreDate(data.createdAt),
-            cards,
-            type: 'custom',
-            ownerId: data.ownerId || null,
-            visibility: data.visibility || 'private',
-            semester,
-            thumbnail: data.thumbnail || LOCAL_THUMBNAILS[category] || LOCAL_THUMBNAILS.general,
-            qualityScore: data.qualityScore || null,
-            aiModel: data.aiModel || null,
-          };
-        })
-        .filter(Boolean);
-
-      setCustomDecks(removeDuplicateDecks(decks));
-      setError('');
-    } catch (fetchError) {
-      console.error('Erreur chargement flashcards:', fetchError);
-      setCustomDecks([]);
-      setError(t('loadError'));
-    } finally {
-      setLoading(false);
+      setLibrary({
+        key: accessKey,
+        items: [
+          ...new Map(
+            documents.map((snapshot) => [
+              snapshot.id,
+              { id: snapshot.id, source: snapshot.data() },
+            ]),
+          ).values(),
+        ],
+        loading: false,
+        error: "",
+      });
+    } catch {
+      if (
+        version === requestVersion.current &&
+        activeAccess.current === accessKey
+      )
+        setLibrary({
+          key: accessKey,
+          items: [],
+          loading: false,
+          error: "loadError",
+        });
     }
   }, [
-    isAuthenticatedAndPaid,
-    user,
-    getDeckCards,
-    getFirestoreDate,
-    removeDuplicateDecks,
-    t,
-    normalizeText,
+    uid,
+    role,
+    adminAccessVersion,
+    unlimited,
+    semester,
+    hasAccess,
+    accessKey,
+    authLoading,
   ]);
 
   useEffect(() => {
-    fetchCustomDecks();
-  }, [fetchCustomDecks]);
-
-  const handleDeckSaved = useCallback(
-    (newDeck) => {
-      if (!isAuthenticatedAndPaid()) {
-        alert(t('subscriptionRequired'));
-        return;
-      }
-
-      const cards = getDeckCards(newDeck);
-
-      if (cards.length === 0) {
-        alert(t('noCardsError'));
-        return;
-      }
-
-      const category = newDeck.category || cards[0]?.category || 'general';
-
-      const transformedDeck = {
-        id: newDeck.id || `custom-${Date.now()}`,
-        title: newDeck.title || t('deckWithoutTitle'),
-        description: newDeck.description || '',
-        category,
-        difficulty: newDeck.difficulty || cards[0]?.difficulty || 'medium',
-        cards,
-        type: 'custom',
-        ownerId: user?.uid || 'anonymous',
-        visibility: 'private',
-        cardCount: cards.length,
-        createdAt: getFirestoreDate(newDeck.createdAt),
-        thumbnail: newDeck.thumbnail || LOCAL_THUMBNAILS[category] || LOCAL_THUMBNAILS.general,
-        semester: user?.semester || null,
-        qualityScore: newDeck.qualityScore || null,
-        aiModel: newDeck.aiModel || null,
-      };
-
-      setCustomDecks((prev) => {
-        const withoutDuplicate = prev.filter((deck) => deck.id !== transformedDeck.id);
-        return [transformedDeck, ...withoutDuplicate];
-      });
-
-      setView('list');
-    },
-    [
-      getDeckCards,
-      getFirestoreDate,
-      isAuthenticatedAndPaid,
-      t,
-      user,
-    ]
-  );
-
-  const handleStudyDeck = useCallback(
-    (deck) => {
-      if (!isAuthenticatedAndPaid() && deck.type === 'custom') {
-        alert(t('subscriptionRequired'));
-        return;
-      }
-
-      if (!deck.cards || deck.cards.length === 0) {
-        alert(t('noCardsError'));
-        return;
-      }
-
-      const hasValidCards = deck.cards.every(
-        (card) =>
-          card?.front &&
-          card?.back &&
-          typeof card.front === 'string' &&
-          typeof card.back === 'string'
-      );
-
-      if (!hasValidCards) {
-        alert(t('invalidFormat'));
-        return;
-      }
-
-      setSelectedDeck(deck);
-      setShuffledIndices(deck.cards.map((_, index) => index));
-      setStudyStats({
-        correct: 0,
-        incorrect: 0,
-        skipped: 0,
-        startTime: Date.now(),
-        cardProgress: new Array(deck.cards.length).fill('unseen'),
-      });
-      setCurrentCardIndex(0);
-      setShowAnswer(false);
-      setIsShuffled(false);
-      setStudyComplete(false);
-      setView('play');
-    },
-    [isAuthenticatedAndPaid, t]
-  );
-
-  const handleDeleteDeck = useCallback(
-    async (deckId) => {
-      if (!isAuthenticatedAndPaid()) {
-        alert(t('subscriptionRequired'));
-        return;
-      }
-
-      if (!window.confirm(t('confirmDelete'))) return;
-
-      try {
-        await deleteDoc(doc(db, 'flashcards', deckId));
-        setCustomDecks((prev) => prev.filter((deck) => deck.id !== deckId));
-      } catch (deleteError) {
-        console.error('Erreur suppression flashcard deck:', deleteError);
-        alert(t('deleteError'));
-      }
-    },
-    [isAuthenticatedAndPaid, t]
-  );
-
+    fetchDecks();
+    return () => {
+      requestVersion.current += 1;
+    };
+  }, [fetchDecks]);
+  const currentLibrary =
+    library.key === accessKey
+      ? library
+      : { items: [], loading: true, error: "" };
+  const loading = authLoading || currentLibrary.loading;
   const allDecks = useMemo(
-    () => [...new Map(customDecks.map(deck => [deck.id, deck])).values()],
-    [customDecks]
+    () =>
+      library.key !== accessKey || !hasAccess
+        ? []
+        : library.items
+            .map((item) =>
+              normalizeFlashcardDeck(item.id, item.source, language),
+            )
+            .filter(
+              (deck) => deck && (administrator || deck.status !== "inactive"),
+            ),
+    [library, accessKey, hasAccess, language, administrator],
   );
-
   const filteredDecks = useMemo(() => {
-    const search = searchQuery.trim().toLowerCase();
-
-    return allDecks
-      .filter((deck) => selectedCategory === 'all' || deck.category === selectedCategory)
-      .filter((deck) => {
-        if (!search) return true;
-
-        return (
-          deck.title?.toLowerCase().includes(search) ||
-          deck.description?.toLowerCase().includes(search)
-        );
-      });
-  }, [allDecks, selectedCategory, searchQuery]);
-
-  const visibleCustomDecks = useMemo(
-    () => filteredDecks.filter((deck) => deck.visibility !== 'shared'),
-    [filteredDecks]
+    const search = flashcardSearchText(searchQuery);
+    return orderFlashcardDecks(
+      allDecks.filter(
+        (deck) =>
+          (selectedCategory === "all" || deck.category === selectedCategory) &&
+          (selectedDifficulty === "all" ||
+            deck.difficulty === selectedDifficulty) &&
+          (scope === "all" ||
+            (scope === "mine"
+              ? deck.ownerId === uid && deck.visibility !== "shared"
+              : deck.visibility === "shared")) &&
+          (!search ||
+            flashcardSearchText(
+              `${deck.title} ${deck.description} ${t(deck.category)}`,
+            ).includes(search)),
+      ),
+      sort,
+      language,
+    );
+  }, [
+    allDecks,
+    selectedCategory,
+    selectedDifficulty,
+    scope,
+    uid,
+    searchQuery,
+    sort,
+    language,
+    t,
+  ]);
+  const ownDecks = filteredDecks.filter(
+    (deck) => deck.visibility !== "shared" && deck.ownerId === uid,
   );
-
-  const visibleDefaultDecks = useMemo(
-    () => filteredDecks.filter((deck) => deck.visibility === 'shared'),
-    [filteredDecks]
+  const sharedDecks = filteredDecks.filter(
+    (deck) => deck.visibility === "shared",
   );
+  const otherPrivateDecks = administrator
+    ? filteredDecks.filter(
+        (deck) => deck.visibility !== "shared" && deck.ownerId !== uid,
+      )
+    : [];
+  const firstDeck =
+    allDecks.find(
+      (deck) => deck.ownerId === uid && deck.visibility !== "shared",
+    ) || allDecks[0];
+  const filtersActive =
+    !!searchQuery ||
+    selectedCategory !== "all" ||
+    selectedDifficulty !== "all" ||
+    scope !== "all";
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSelectedDifficulty("all");
+    setScope("all");
+  };
+  const cancelAdvance = useCallback(() => {
+    clearTimeout(advanceTimer.current);
+    advanceTimer.current = null;
+    setPendingAdvance(false);
+  }, []);
+  useEffect(() => {
+    cancelAdvance();
+    return () => clearTimeout(advanceTimer.current);
+  }, [accessKey, view, cancelAdvance]);
+  const selectedDeck = useMemo(
+    () =>
+      selectedSource?.key === accessKey
+        ? normalizeFlashcardDeck(
+            selectedSource.id,
+            selectedSource.source,
+            language,
+          )
+        : null,
+    [selectedSource, accessKey, language],
+  );
+  const counts = flashcardSessionCounts(responses);
+  const gradedCount = counts.correct + counts.incorrect;
+  const accuracy = gradedCount
+    ? Math.round((counts.correct / gradedCount) * 100)
+    : null;
+  const realIndex = order[cardIndex] ?? cardIndex;
+  const currentCard = selectedDeck?.cards[realIndex];
+  const elapsed = startedAt
+    ? Math.max(0, Math.floor(((finishedAt ?? now) - startedAt) / 1000))
+    : 0;
+  const elapsedLabel = `${Math.floor(elapsed / 60)} ${t("minutes")} ${elapsed % 60} ${t("seconds")}`;
 
-  const formatDate = useCallback(
-    (date) => {
-      if (!date) return '';
+  useEffect(() => {
+    if (view !== "play" || studyComplete) return undefined;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [view, studyComplete]);
+  useEffect(() => {
+    if (view === "play") headingRef.current?.focus();
+  }, [view, cardIndex, studyComplete]);
 
-      return new Date(date).toLocaleDateString(language === 'ar' ? 'ar-MA' : 'fr-FR', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
+  const beginStudy = useCallback(
+    (deck) => {
+      if (
+        !hasAccess ||
+        activeAccess.current !== accessKey ||
+        !deck?.cards.length
+      )
+        return;
+      cancelAdvance();
+      setSelectedSource({ key: accessKey, id: deck.id, source: deck.source });
+      setOrder(deck.cards.map((_, index) => index));
+      setResponses(deck.cards.map(() => "unseen"));
+      setCardIndex(0);
+      setShowAnswer(false);
+      setStudyComplete(false);
+      setIsShuffled(false);
+      setStartedAt(Date.now());
+      setFinishedAt(null);
+      setNow(Date.now());
+      setView("play");
     },
-    [language]
+    [hasAccess, accessKey, cancelAdvance, setView],
   );
-
-  const getDifficultyColor = useCallback((difficulty) => {
-    switch (difficulty) {
-      case 'easy':
-        return 'bg-green-100 text-green-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'hard':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  }, []);
-
-  const getProgressColor = useCallback((status) => {
-    switch (status) {
-      case 'correct':
-        return 'bg-green-500';
-      case 'incorrect':
-        return 'bg-red-500';
-      case 'skip':
-        return 'bg-yellow-500';
-      case 'unseen':
-      default:
-        return 'bg-gray-300';
-    }
-  }, []);
-
+  const finishStudy = useCallback(() => {
+    cancelAdvance();
+    setFinishedAt(Date.now());
+    setStudyComplete(true);
+  }, [cancelAdvance]);
   const handleNext = useCallback(() => {
     if (!selectedDeck) return;
-
-    const nextIndex = currentCardIndex + 1;
-
-    if (nextIndex < selectedDeck.cards.length) {
-      setCurrentCardIndex(nextIndex);
+    cancelAdvance();
+    if (cardIndex + 1 >= selectedDeck.cards.length) finishStudy();
+    else {
+      setCardIndex((index) =>
+        Math.min(index + 1, selectedDeck.cards.length - 1),
+      );
       setShowAnswer(false);
-    } else {
-      setStudyComplete(true);
     }
-  }, [currentCardIndex, selectedDeck]);
-
+  }, [selectedDeck, cardIndex, cancelAdvance, finishStudy]);
   const handlePrevious = useCallback(() => {
-    if (currentCardIndex > 0) {
-      setCurrentCardIndex((prev) => prev - 1);
-      setShowAnswer(false);
-    }
-  }, [currentCardIndex]);
-
-  const handleCardResponse = useCallback(
+    cancelAdvance();
+    setCardIndex((index) => Math.max(0, index - 1));
+    setShowAnswer(false);
+  }, [cancelAdvance]);
+  const handleResponse = useCallback(
     (response) => {
-      if (!selectedDeck) return;
-
-      const realCardIndex = shuffledIndices[currentCardIndex] ?? currentCardIndex;
-
-      setStudyStats((prev) => {
-        const newProgress = [...prev.cardProgress];
-        const previousStatus = newProgress[realCardIndex];
-
-        const newStats = { ...prev, cardProgress: newProgress };
-
-        if (previousStatus === 'correct') newStats.correct = Math.max(0, newStats.correct - 1);
-        if (previousStatus === 'incorrect') newStats.incorrect = Math.max(0, newStats.incorrect - 1);
-        if (previousStatus === 'skip') newStats.skipped = Math.max(0, newStats.skipped - 1);
-
-        newProgress[realCardIndex] = response;
-
-        if (response === 'correct') newStats.correct += 1;
-        if (response === 'incorrect') newStats.incorrect += 1;
-        if (response === 'skip') newStats.skipped += 1;
-
-        return newStats;
-      });
-
-      if (autoAdvance || response !== 'skip') {
-        setTimeout(() => {
+      if (
+        !hasAccess ||
+        !selectedDeck ||
+        !showAnswer ||
+        advanceTimer.current !== null ||
+        !["correct", "incorrect", "skip"].includes(response)
+      )
+        return;
+      setResponses((previous) =>
+        previous.map((value, index) =>
+          index === realIndex ? response : value,
+        ),
+      );
+      if (autoAdvance) {
+        setPendingAdvance(true);
+        advanceTimer.current = setTimeout(() => {
+          advanceTimer.current = null;
+          setPendingAdvance(false);
           handleNext();
-        }, 450);
+        }, 350);
       }
     },
-    [autoAdvance, currentCardIndex, handleNext, selectedDeck, shuffledIndices]
+    [hasAccess, selectedDeck, showAnswer, realIndex, autoAdvance, handleNext],
   );
-
-  const shuffleCards = useCallback(() => {
+  const shuffleCards = () => {
     if (!selectedDeck) return;
-
-    const indices = [...Array(selectedDeck.cards.length).keys()];
-
-    for (let i = indices.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [indices[i], indices[j]] = [indices[j], indices[i]];
+    cancelAdvance();
+    const indices = selectedDeck.cards.map((_, index) => index);
+    for (let index = indices.length - 1; index > 0; index -= 1) {
+      const target = Math.floor(Math.random() * (index + 1));
+      [indices[index], indices[target]] = [indices[target], indices[index]];
     }
-
-    setShuffledIndices(indices);
-    setCurrentCardIndex(0);
+    setOrder(indices);
+    setCardIndex(0);
     setShowAnswer(false);
     setIsShuffled(true);
-  }, [selectedDeck]);
-
-  const resetStudy = useCallback(() => {
-    if (!selectedDeck) return;
-
-    setCurrentCardIndex(0);
-    setShowAnswer(false);
-    setIsShuffled(false);
-    setStudyComplete(false);
-    setShuffledIndices(selectedDeck.cards.map((_, index) => index));
-    setStudyStats({
-      correct: 0,
-      incorrect: 0,
-      skipped: 0,
-      startTime: Date.now(),
-      cardProgress: new Array(selectedDeck.cards.length).fill('unseen'),
-    });
-  }, [selectedDeck]);
-
-  const getTimeSpent = useCallback(() => {
-    const seconds = Math.floor((Date.now() - studyStats.startTime) / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (minutes > 0) {
-      return `${minutes}${t('minutes')} ${remainingSeconds}${t('seconds')}`;
-    }
-
-    return `${seconds}${t('seconds')}`;
-  }, [studyStats.startTime, t]);
-
-  const getAccuracy = useCallback(() => {
-    const total = studyStats.correct + studyStats.incorrect;
-    return total === 0 ? 0 : Math.round((studyStats.correct / total) * 100);
-  }, [studyStats.correct, studyStats.incorrect]);
-
+  };
   useEffect(() => {
-    const handleKeyPress = (event) => {
-      if (view !== 'play' || studyComplete) return;
-
-      switch (event.key) {
-        case ' ':
-        case 'Enter':
-          event.preventDefault();
-          setShowAnswer((prev) => !prev);
-          break;
-        case 'ArrowLeft':
-          event.preventDefault();
-          handlePrevious();
-          break;
-        case 'ArrowRight':
-          event.preventDefault();
-          handleNext();
-          break;
-        case '1':
-          event.preventDefault();
-          if (showAnswer) handleCardResponse('incorrect');
-          break;
-        case '2':
-          event.preventDefault();
-          if (showAnswer) handleCardResponse('skip');
-          break;
-        case '3':
-          event.preventDefault();
-          if (showAnswer) handleCardResponse('correct');
-          break;
-        default:
-          break;
+    if (view !== "play" || studyComplete) return undefined;
+    const onKeyDown = (event) => {
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        event.target?.closest?.(
+          'input, textarea, select, button, a, [contenteditable="true"], [role="button"]',
+        )
+      )
+        return;
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        setShowAnswer((value) => !value);
+      } else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        if ((event.key === "ArrowRight") !== isRTL) handleNext();
+        else handlePrevious();
+      } else if (showAnswer && ["1", "2", "3"].includes(event.key)) {
+        event.preventDefault();
+        handleResponse({ 1: "incorrect", 2: "skip", 3: "correct" }[event.key]);
       }
     };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     view,
+    studyComplete,
     showAnswer,
+    isRTL,
     handleNext,
     handlePrevious,
-    handleCardResponse,
-    studyComplete,
+    handleResponse,
   ]);
 
-  const DeckCard = ({ deck }) => {
-    const cardCount = deck.cards?.length || deck.cardCount || 0;
-    const thumbnail = deck.thumbnail || LOCAL_THUMBNAILS[deck.category] || LOCAL_THUMBNAILS.general;
-
-    return (
-      <article className="flashcard-deck-card">
-        <div className="flashcard-deck-image">
-          <img
-            src={thumbnail}
-            alt={deck.title}
-            loading="lazy"
-            onError={(event) => {
-              event.currentTarget.src = '/image1.png';
-            }}
-          />
-        </div>
-
-        <div className="flashcard-deck-body">
-          <div className="flashcard-deck-head">
-            <h3>{deck.title}</h3>
-            <span className={`deck-type-badge ${deck.type === 'custom' ? 'custom' : ''}`}>
-              {deck.visibility === 'shared' ? (language === 'fr' ? 'Partagé' : 'مشترك') : deck.type === 'custom' ? t('personalized') : t('default')}
-            </span>
-          </div>
-
-          {deck.description && <p className="flashcard-deck-desc">{deck.description}</p>}
-
-          <div className="flashcard-deck-meta">
-            <span>{cardCount} {t('cards')}</span>
-            <span className={getDifficultyColor(deck.difficulty)}>
-              {t(deck.difficulty)}
-            </span>
-          </div>
-
-          {deck.createdAt && (
-            <p className="flashcard-deck-date">
-              {t('createdOn')} {formatDate(deck.createdAt)}
-            </p>
-          )}
-
-          <div className="flashcard-deck-actions">
-            <button
-              type="button"
-              onClick={() => handleStudyDeck(deck)}
-              className="btn-primary"
-              disabled={cardCount === 0}
-            >
-              <BookOpen className="w-4 h-4" />
-              {t('study')}
-            </button>
-
-            {deck.type === 'custom' && (isAdmin(user) || (deck.ownerId === user?.uid && deck.visibility !== 'shared')) && (
-              <button
-                type="button"
-                onClick={() => handleDeleteDeck(deck.id)}
-                className="deck-delete-btn"
-                aria-label={t('delete')}
-                title={t('delete')}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          {deck.type === 'custom' && isAdmin(user) && <ContentPublication collectionName="flashcards" item={deck} language={language} onUpdated={fetchCustomDecks} />}
-        </div>
-      </article>
-    );
+  const handleDeckSaved = (newDeck) => {
+    if (activeAccess.current !== accessKey || !hasAccess || !newDeck?.id)
+      return;
+    requestVersion.current += 1;
+    setLibrary((previous) => ({
+      key: accessKey,
+      items: [
+        { id: newDeck.id, source: newDeck },
+        ...(previous.key === accessKey
+          ? previous.items.filter((item) => item.id !== newDeck.id)
+          : []),
+      ],
+      loading: false,
+      error: "",
+    }));
+    clearFilters();
+    setSort("recent");
+    setView("list");
   };
+  const handleDeleteDeck = async (id) => {
+    const deck = allDecks.find((item) => item.id === id);
+    if (
+      !hasAccess ||
+      !deck ||
+      (!administrator &&
+        (deck.ownerId !== uid || deck.visibility === "shared")) ||
+      deletingId
+    )
+      return;
+    if (!window.confirm(t("confirmDelete"))) return;
+    setDeletingId(id);
+    try {
+      await deleteDoc(doc(db, "flashcards", id));
+      if (activeAccess.current === accessKey)
+        setLibrary((previous) => ({
+          ...previous,
+          items: previous.items.filter((item) => item.id !== id),
+        }));
+    } catch {
+      if (activeAccess.current === accessKey)
+        setLibrary((previous) => ({ ...previous, error: "deleteError" }));
+    } finally {
+      if (activeAccess.current === accessKey) setDeletingId(null);
+    }
+  };
+  const renderDeckGroup = (decks, title, id, icon) =>
+    !decks.length ? null : (
+      <section className="fcl-deck-section" aria-labelledby={id}>
+        <div className="fcl-group-heading">
+          <span>{icon}</span>
+          <h2 id={id}>{title}</h2>
+          <span className="fcl-count-badge">{decks.length}</span>
+        </div>
+        <div className="fcl-deck-grid">
+          {decks.map((deck) => (
+            <DeckCard
+              key={deck.id}
+              deck={deck}
+              t={t}
+              language={language}
+              onStudy={beginStudy}
+              onDelete={handleDeleteDeck}
+              deleting={deletingId === deck.id}
+              canDelete={
+                administrator ||
+                (deck.ownerId === uid && deck.visibility !== "shared")
+              }
+              canPublish={administrator}
+              onPublished={fetchDecks}
+            />
+          ))}
+        </div>
+      </section>
+    );
 
-  if (view === 'generate') {
+  if (view === "generate")
     return (
-      <div className={`flashcards-page ${isRTL ? 'rtl' : 'ltr'}`}>
-        <div className="flashcards-shell">
-          <div className="flashcards-topbar">
-            <button
-              type="button"
-              onClick={() => setView('list')}
-              className="icon-button"
-              aria-label={t('back')}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-
-            <div>
-              <h1>{t('createFromPDF')}</h1>
-              <p>{t('subtitle')}</p>
-            </div>
-          </div>
-
+      <div
+        className="flashcard-library fcl-generator-page"
+        dir={isRTL ? "rtl" : "ltr"}
+        lang={language}
+      >
+        <div className="fcl-shell">
+          <button
+            className="fcl-back-link"
+            type="button"
+            onClick={() => setView("list")}
+          >
+            <ArrowLeft
+              size={17}
+              className="fcl-directional"
+              aria-hidden="true"
+            />
+            {t("libraryBack")}
+          </button>
+          <header className="fcl-generation-heading">
+            <span className="fcl-kicker">
+              <FileText size={15} aria-hidden="true" />
+              {t("createFromPDF")}
+            </span>
+            <h1>{t("createFromPDF")}</h1>
+            <p>{t("generatorDescription")}</p>
+          </header>
           <FlashcardGenerator
-            onClose={() => setView('list')}
+            key={accessKey}
+            onClose={() => setView("list")}
             onDeckSaved={handleDeckSaved}
+            initialCategory={
+              selectedCategory === "all" ? "general" : selectedCategory
+            }
           />
         </div>
       </div>
     );
-  }
 
-  if (view === 'play' && selectedDeck) {
-    const realCardIndex = shuffledIndices[currentCardIndex] ?? currentCardIndex;
-    const currentCard = selectedDeck.cards[realCardIndex];
-    const isLastCard = currentCardIndex === selectedDeck.cards.length - 1;
-    const progressPercentage = ((currentCardIndex + 1) / selectedDeck.cards.length) * 100;
-
-    if (studyComplete) {
+  if (view === "play" && selectedDeck && currentCard) {
+    if (studyComplete)
       return (
-        <div className={`flashcards-page study-complete-page ${isRTL ? 'rtl' : 'ltr'}`}>
-          <div className="study-complete-card">
-            <div className="study-complete-icon">
-              <Trophy className="w-10 h-10" />
+        <div
+          className="flashcard-library fcl-summary-page"
+          dir={isRTL ? "rtl" : "ltr"}
+          lang={language}
+        >
+          <section className="fcl-summary">
+            <span className="fcl-summary-icon">
+              <Trophy size={32} aria-hidden="true" />
+            </span>
+            <span className="fcl-kicker">{t("sessionOnly")}</span>
+            <h1 ref={headingRef} tabIndex={-1}>
+              {t("sessionTitle")}
+            </h1>
+            <p>{t("sessionDescription")}</p>
+            <h2>{selectedDeck.title}</h2>
+            <div className="fcl-summary-grid">
+              {[
+                {
+                  value: `${counts.assessed} / ${selectedDeck.cardCount}`,
+                  label: t("reviewed"),
+                },
+                { value: counts.correct, label: t("correct") },
+                { value: counts.incorrect, label: t("incorrect") },
+                { value: counts.skip, label: t("skip") },
+                {
+                  value: selectedDeck.cardCount - counts.assessed,
+                  label: t("unreviewed"),
+                },
+                {
+                  value: accuracy === null ? "—" : `${accuracy} %`,
+                  label: t("accuracy"),
+                },
+              ].map((item) => (
+                <div key={item.label}>
+                  <strong>{item.value}</strong>
+                  <span>{item.label}</span>
+                </div>
+              ))}
             </div>
-
-            <h1>{t('congratulations')}</h1>
-            <h2>{t('studyComplete')}</h2>
-
-            <div className="study-summary-grid">
-              <div>
-                <strong>{selectedDeck.cards.length}</strong>
-                <span>{t('cards')}</span>
-              </div>
-              <div>
-                <strong>{studyStats.correct}</strong>
-                <span>{t('correct')}</span>
-              </div>
-              <div>
-                <strong>{studyStats.incorrect}</strong>
-                <span>{t('incorrect')}</span>
-              </div>
-              <div>
-                <strong>{getAccuracy()}%</strong>
-                <span>{t('accuracy')}</span>
-              </div>
-            </div>
-
-            <p className="study-time">
-              {t('timeSpent')}: {getTimeSpent()}
+            <p className="fcl-summary-time">
+              <Clock3 size={16} aria-hidden="true" />
+              {t("timeSpent")} : {elapsedLabel}
             </p>
-
-            <div className="study-actions">
-              <button type="button" onClick={resetStudy} className="btn-primary">
-                {t('studyAgain')}
+            <div className="fcl-summary-actions">
+              <button
+                type="button"
+                className="fcl-button fcl-button-primary"
+                onClick={() => beginStudy(selectedDeck)}
+              >
+                <RotateCcw size={16} aria-hidden="true" />
+                {t("nextSession")}
               </button>
-              <button type="button" onClick={() => setView('list')} className="btn-secondary">
-                {t('back')}
+              <button
+                type="button"
+                className="fcl-button fcl-button-secondary"
+                onClick={() => setView("list")}
+              >
+                {t("libraryBack")}
               </button>
             </div>
-          </div>
+            <small>{t("sessionLocal")}</small>
+          </section>
         </div>
       );
-    }
-
     return (
-      <div className={`flashcards-page ${isRTL ? 'rtl' : 'ltr'}`}>
-        <div className="flashcards-shell">
-          <section className="study-header-card">
-            <div className="study-header-main">
-              <button
-                type="button"
-                onClick={() => setView('list')}
-                className="icon-button"
-                aria-label={t('back')}
-              >
-                <Home className="w-5 h-5" />
-              </button>
-
-              <div>
-                <h1>{selectedDeck.title}</h1>
-                <p>
-                  {currentCardIndex + 1} {t('cardOf')} {selectedDeck.cards.length}
-                </p>
-
-                <div className="study-tags">
-                  <span>{t(selectedDeck.difficulty)}</span>
-                  <span>{t(selectedDeck.category)}</span>
-                  {isShuffled && <span>{t('shuffle')}</span>}
-                </div>
+      <div
+        className="flashcard-library fcl-study-page"
+        dir={isRTL ? "rtl" : "ltr"}
+        lang={language}
+      >
+        <div className="fcl-study-shell">
+          <button
+            type="button"
+            className="fcl-back-link"
+            onClick={() => setView("list")}
+          >
+            <ArrowLeft
+              size={17}
+              className="fcl-directional"
+              aria-hidden="true"
+            />
+            {t("libraryBack")}
+          </button>
+          <header className="fcl-study-header">
+            <div>
+              <span className="fcl-kicker">{t("studyEyebrow")}</span>
+              <h1>{selectedDeck.title}</h1>
+              <div className="fcl-study-tags">
+                <span>{t(selectedDeck.category)}</span>
+                <span>
+                  {cardIndex + 1} {t("cardOf")} {selectedDeck.cardCount}
+                </span>
+                {isShuffled && <span>{t("shuffle")}</span>}
               </div>
             </div>
-
-            <div className="study-header-actions">
+            <div className="fcl-study-tools">
               <button
                 type="button"
+                className="fcl-icon-button"
                 onClick={shuffleCards}
-                className={`icon-button ${isShuffled ? 'active' : ''}`}
-                title={t('shuffle')}
+                aria-label={t("shuffle")}
+                aria-pressed={isShuffled}
               >
-                <Shuffle className="w-5 h-5" />
+                <Shuffle size={18} aria-hidden="true" />
               </button>
-
               <button
                 type="button"
-                onClick={resetStudy}
-                className="icon-button"
-                title={t('reset')}
+                className="fcl-icon-button"
+                onClick={() => beginStudy(selectedDeck)}
+                aria-label={t("reset")}
               >
-                <RotateCcw className="w-5 h-5" />
+                <RotateCcw size={18} aria-hidden="true" />
               </button>
             </div>
-
-            <div className="study-progress-block">
-              <div>
-                <span>{t('progress')}</span>
-                <span>{Math.round(progressPercentage)}%</span>
-              </div>
-
-              <div className="study-progress-bar">
-                <div style={{ width: `${progressPercentage}%` }} />
-              </div>
-
-              <div className="study-progress-dots">
-                {studyStats.cardProgress.map((status, index) => (
-                  <span
-                    key={`${status}-${index}`}
-                    className={`${getProgressColor(status)} ${
-                      index === realCardIndex ? 'current' : ''
-                    }`}
-                    title={`Card ${index + 1}: ${status}`}
-                  />
-                ))}
-              </div>
+          </header>
+          <section
+            className="fcl-session-metrics"
+            aria-label={t("sessionOnly")}
+          >
+            <div>
+              <CheckCircle size={17} aria-hidden="true" />
+              <strong>{counts.correct}</strong>
+              <span>{t("correct")}</span>
+            </div>
+            <div>
+              <Target size={17} aria-hidden="true" />
+              <strong>{accuracy === null ? "—" : `${accuracy} %`}</strong>
+              <span>{t("accuracy")}</span>
+            </div>
+            <div>
+              <Clock3 size={17} aria-hidden="true" />
+              <strong>{elapsedLabel}</strong>
+              <span>{t("timeSpent")}</span>
             </div>
           </section>
-
-          <section className="study-stats-grid">
+          <div className="fcl-session-progress">
             <div>
-              <strong>{studyStats.correct}</strong>
-              <span><CheckCircle className="w-4 h-4" /> {t('correct')}</span>
+              <span>{t("evaluated")}</span>
+              <strong>
+                {counts.assessed} / {selectedDeck.cardCount}
+              </strong>
             </div>
-            <div>
-              <strong>{studyStats.incorrect}</strong>
-              <span><XCircle className="w-4 h-4" /> {t('incorrect')}</span>
+            <progress
+              aria-label={t("evaluated")}
+              value={counts.assessed}
+              max={selectedDeck.cardCount}
+            />
+            <div className="fcl-progress-dots" aria-hidden="true">
+              {responses.map((response, index) => (
+                <span
+                  key={index}
+                  className={`is-${response}${index === realIndex ? " is-current" : ""}`}
+                />
+              ))}
             </div>
-            <div>
-              <strong>{getAccuracy()}%</strong>
-              <span><Target className="w-4 h-4" /> {t('accuracy')}</span>
-            </div>
-            <div>
-              <strong>{getTimeSpent()}</strong>
-              <span><Clock className="w-4 h-4" /> {t('timeSpent')}</span>
-            </div>
-          </section>
-
-          <section className="study-card">
-            <div className="study-question">
+          </div>
+          <section className="fcl-study-card">
+            <div className="fcl-question">
               <div>
-                <h2>{t('question')}</h2>
-                <span>{currentCardIndex + 1} / {selectedDeck.cards.length}</span>
+                <span className="fcl-kicker">{t("question")}</span>
+                <span>
+                  {cardIndex + 1} / {selectedDeck.cardCount}
+                </span>
               </div>
-              <p>{currentCard.front}</p>
+              <h2 ref={headingRef} tabIndex={-1}>
+                {currentCard.front}
+              </h2>
+              <p>{t("answerHint")}</p>
             </div>
-
-            <div className="study-answer-zone">
-              {showAnswer ? (
-                <div className="study-answer">
+            <div className="fcl-answer-zone">
+              <button
+                type="button"
+                className="fcl-reveal-button"
+                onClick={() => setShowAnswer((value) => !value)}
+                aria-expanded={showAnswer}
+                aria-controls="flashcard-answer"
+              >
+                <Eye size={18} aria-hidden="true" />
+                {t(showAnswer ? "hideAnswer" : "showAnswer")}
+                <span aria-hidden="true">
+                  <Keyboard size={14} />
+                  {language === "ar" ? "مسافة" : "Espace"}
+                </span>
+              </button>
+              {showAnswer && (
+                <div
+                  id="flashcard-answer"
+                  className="fcl-answer"
+                  aria-live="polite"
+                >
                   <h3>
-                    <CheckCircle className="w-5 h-5" />
-                    {t('answer')}
+                    <Check size={17} aria-hidden="true" />
+                    {t("answer")}
                   </h3>
                   <p>{currentCard.back}</p>
-
                   {currentCard.conceptSource && (
-                    <small>Concept : {currentCard.conceptSource}</small>
+                    <small>
+                      {t("sourceLabel")} : {currentCard.conceptSource}
+                    </small>
                   )}
-
-                  <div className="answer-actions">
-                    <button
-                      type="button"
-                      onClick={() => handleCardResponse('incorrect')}
-                      className="answer-btn incorrect"
-                    >
-                      <XCircle className="w-5 h-5" />
-                      {t('incorrect')} <span>(1)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleCardResponse('skip')}
-                      className="answer-btn skip"
-                    >
-                      <AlertCircle className="w-5 h-5" />
-                      {t('skip')} <span>(2)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleCardResponse('correct')}
-                      className="answer-btn correct"
-                    >
-                      <CheckCircle className="w-5 h-5" />
-                      {t('correct')} <span>(3)</span>
-                    </button>
+                  <div className="fcl-rating-block">
+                    <p>{t("responseHelp")}</p>
+                    <div className="fcl-rating-actions">
+                      {[
+                        {
+                          response: "incorrect",
+                          icon: XCircle,
+                          key: 1,
+                          label: "incorrect",
+                        },
+                        {
+                          response: "skip",
+                          icon: AlertCircle,
+                          key: 2,
+                          label: "skip",
+                        },
+                        {
+                          response: "correct",
+                          icon: CheckCircle,
+                          key: 3,
+                          label: "correct",
+                        },
+                      ].map(({ response, icon: Icon, key, label }) => (
+                        <button
+                          key={response}
+                          type="button"
+                          className={`fcl-rating fcl-rating-${response}`}
+                          disabled={pendingAdvance}
+                          aria-pressed={responses[realIndex] === response}
+                          onClick={() => handleResponse(response)}
+                        >
+                          <Icon size={17} aria-hidden="true" />
+                          {t(label)}
+                          <kbd aria-hidden="true">{key}</kbd>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowAnswer(true)}
-                  className="show-answer-btn"
-                >
-                  <Eye className="w-6 h-6" />
-                  {t('showAnswer')} <span>(Space)</span>
-                </button>
               )}
             </div>
           </section>
-
-          <section className="study-bottom-nav">
+          <nav className="fcl-study-navigation" aria-label={t("study")}>
             <button
               type="button"
+              className="fcl-button fcl-button-secondary"
               onClick={handlePrevious}
-              disabled={currentCardIndex === 0}
-              className="btn-secondary"
+              disabled={cardIndex === 0}
             >
-              <ChevronLeft className="w-5 h-5" />
-              {t('prev')}
+              <ChevronLeft
+                size={17}
+                className="fcl-directional"
+                aria-hidden="true"
+              />
+              {t("prev")}
             </button>
-
-            <label className="auto-advance-toggle">
+            <label className="fcl-auto-advance">
               <input
                 type="checkbox"
                 checked={autoAdvance}
-                onChange={(event) => setAutoAdvance(event.target.checked)}
+                onChange={(event) => {
+                  cancelAdvance();
+                  setAutoAdvance(event.target.checked);
+                }}
               />
-              {t('autoAdvance')}
+              {t("autoAdvance")}
             </label>
-
             <button
               type="button"
-              onClick={isLastCard ? () => setStudyComplete(true) : handleNext}
-              className="btn-primary"
+              className="fcl-button fcl-button-primary"
+              onClick={handleNext}
             >
-              {isLastCard ? (
-                <>
-                  <Trophy className="w-5 h-5" />
-                  {t('finish')}
-                </>
-              ) : (
-                <>
-                  {t('next')}
-                  <ChevronRight className="w-5 h-5" />
-                </>
-              )}
+              {t(cardIndex === selectedDeck.cardCount - 1 ? "finish" : "next")}
+              <ChevronRight
+                size={17}
+                className="fcl-directional"
+                aria-hidden="true"
+              />
             </button>
-          </section>
-
-          <p className="keyboard-help">{t('keyboardShortcuts')}</p>
+          </nav>
+          <p className="fcl-keyboard-help">
+            <Keyboard size={17} aria-hidden="true" />
+            {t("keyboardShortcuts")}
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`flashcards-page ${isRTL ? 'rtl' : 'ltr'}`}>
-      <div className="flashcards-shell">
-        <header className="flashcards-hero">
-          <div>
-            <span className="flashcards-kicker">MedPlatform Maroc</span>
-            <h1>{t('title')}</h1>
-            <p>{t('subtitle')}</p>
+    <div
+      className="flashcard-library"
+      dir={isRTL ? "rtl" : "ltr"}
+      lang={language}
+    >
+      <div className="fcl-shell">
+        <header className="fcl-hero">
+          <div className="fcl-hero-copy">
+            <span className="fcl-eyebrow">
+              <Sparkles size={15} aria-hidden="true" />
+              {t("eyebrow")}
+            </span>
+            <h1>{t("title")}</h1>
+            <p className="fcl-hero-line">{t("heroLine")}</p>
+            <p className="fcl-hero-description">{t("heroDescription")}</p>
+            <div className="fcl-hero-actions">
+              <button
+                type="button"
+                className="fcl-button fcl-button-light"
+                disabled={!hasAccess}
+                onClick={() => setView("generate")}
+              >
+                <Plus size={18} aria-hidden="true" />
+                {t("createFromPDF")}
+              </button>
+              {firstDeck && (
+                <button
+                  type="button"
+                  className="fcl-button fcl-button-ghost"
+                  onClick={() => beginStudy(firstDeck)}
+                >
+                  {t("launchSession")}
+                  <ArrowRight
+                    size={16}
+                    className="fcl-directional"
+                    aria-hidden="true"
+                  />
+                </button>
+              )}
+            </div>
+            <span className="fcl-private-note">
+              <LockKeyhole size={13} aria-hidden="true" />
+              {t("privateNote")}
+            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (isAuthenticatedAndPaid()) {
-                setView('generate');
-              } else {
-                alert(t('subscriptionRequired'));
-              }
-            }}
-            className="btn-primary"
-            disabled={!isAuthenticatedAndPaid()}
-          >
-            <Plus className="w-5 h-5" />
-            {t('createFromPDF')}
-          </button>
+          <div className="fcl-hero-art" aria-hidden="true">
+            <span className="fcl-floating-spark">
+              <Sparkles size={25} />
+            </span>
+            <div className="fcl-hero-card fcl-hero-card-back" />
+            <div className="fcl-hero-card fcl-hero-card-front">
+              <span>
+                <Layers size={21} />
+                {t("heroArt")}
+              </span>
+              <strong>{t("heroArtTitle")}</strong>
+              <span className="fcl-hero-card-line" />
+              <small>{t("heroArtDescription")}</small>
+              <span className="fcl-card-check">
+                <Check size={17} />
+              </span>
+            </div>
+          </div>
         </header>
-
-        {error && (
-          <div className="flashcards-alert">
-            <AlertCircle className="w-5 h-5" />
-            {error}
-          </div>
-        )}
-
-        <section className="flashcards-filters">
-          <div className="flashcards-search">
-            <Search className="w-5 h-5" />
-            <input
-              type="text"
-              placeholder={t('searchPlaceholder')}
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-          </div>
-
-          <select
-            value={selectedCategory}
-            onChange={(event) => setSelectedCategory(event.target.value)}
-          >
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.label}
-              </option>
-            ))}
-          </select>
+        <section className="fcl-overview" aria-label={t("libraryTitle")}>
+          {[
+            { label: t("deckCount"), value: allDecks.length, icon: Library },
+            {
+              label: t("cardCount"),
+              value: allDecks.reduce((sum, deck) => sum + deck.cardCount, 0),
+              icon: Layers,
+            },
+            {
+              label: t("personalCount"),
+              value: allDecks.filter(
+                (deck) => deck.ownerId === uid && deck.visibility !== "shared",
+              ).length,
+              icon: LockKeyhole,
+            },
+            {
+              label: t("sharedCount"),
+              value: allDecks.filter((deck) => deck.visibility === "shared")
+                .length,
+              icon: BookOpen,
+            },
+          ].map(({ label, value, icon: Icon }) => (
+            <div key={label}>
+              <span className="fcl-overview-icon">
+                <Icon size={20} aria-hidden="true" />
+              </span>
+              <strong>{loading || currentLibrary.error ? "—" : value}</strong>
+              <span>{label}</span>
+            </div>
+          ))}
         </section>
-
-        {(loading || authLoading) && (
-          <section className="flashcards-empty">
-            <div className="loading-spinner" />
-            <p>{t('loading')}</p>
-          </section>
+        <section
+          className="fcl-library-controls"
+          aria-labelledby="fcl-library-title"
+        >
+          <div className="fcl-library-heading">
+            <div>
+              <h2 id="fcl-library-title">{t("libraryTitle")}</h2>
+              <p>{t("libraryDescription")}</p>
+            </div>
+            <span className="fcl-controls-icon">
+              <SlidersHorizontal size={20} aria-hidden="true" />
+            </span>
+          </div>
+          <div
+            className="fcl-scope"
+            role="group"
+            aria-label={t("libraryTitle")}
+          >
+            {[
+              { id: "all", title: t("allDecks"), count: allDecks.length },
+              {
+                id: "mine",
+                title: t("personalTab"),
+                count: allDecks.filter(
+                  (deck) =>
+                    deck.ownerId === uid && deck.visibility !== "shared",
+                ).length,
+              },
+              {
+                id: "shared",
+                title: t("sharedTab"),
+                count: allDecks.filter((deck) => deck.visibility === "shared")
+                  .length,
+              },
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={scope === item.id}
+                onClick={() => setScope(item.id)}
+              >
+                {item.title}
+                <span>{loading ? "—" : item.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className="fcl-filters">
+            <label className="fcl-search" htmlFor="flashcard-search">
+              <span>{t("searchLabel")}</span>
+              <span>
+                <Search size={17} aria-hidden="true" />
+                <input
+                  id="flashcard-search"
+                  type="search"
+                  placeholder={t("searchPlaceholder")}
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                />
+              </span>
+            </label>
+            <label htmlFor="flashcard-category">
+              <span>{t("subjectLabel")}</span>
+              <select
+                id="flashcard-category"
+                value={selectedCategory}
+                onChange={(event) => setSelectedCategory(event.target.value)}
+              >
+                <option value="all">{t("allCategories")}</option>
+                {FLASHCARD_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {t(category)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label htmlFor="flashcard-difficulty">
+              <span>{t("difficultyLabel")}</span>
+              <select
+                id="flashcard-difficulty"
+                value={selectedDifficulty}
+                onChange={(event) => setSelectedDifficulty(event.target.value)}
+              >
+                <option value="all">{t("allDifficulties")}</option>
+                {["easy", "medium", "hard", "unspecified"].map((difficulty) => (
+                  <option key={difficulty} value={difficulty}>
+                    {t(difficulty)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label htmlFor="flashcard-sort">
+              <span>{t("sortLabel")}</span>
+              <select
+                id="flashcard-sort"
+                value={sort}
+                onChange={(event) => setSort(event.target.value)}
+              >
+                {[
+                  { id: "recent", label: "recentSort" },
+                  { id: "oldest", label: "oldestSort" },
+                  { id: "title", label: "titleSort" },
+                  { id: "cards", label: "cardsSort" },
+                ].map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {t(option.label)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="fcl-results-line">
+            <p role="status" aria-live="polite">
+              {loading
+                ? t("loading")
+                : `${filteredDecks.length} ${t("resultCount")}`}
+            </p>
+            {filtersActive && (
+              <button type="button" onClick={clearFilters}>
+                <X size={14} aria-hidden="true" />
+                {t("clearFilters")}
+              </button>
+            )}
+          </div>
+        </section>
+        {currentLibrary.error && (
+          <div className="fcl-alert" role="alert">
+            <AlertCircle size={19} aria-hidden="true" />
+            <p>{t(currentLibrary.error)}</p>
+            <button type="button" onClick={fetchDecks}>
+              <RefreshCw size={15} aria-hidden="true" />
+              {t("retry")}
+            </button>
+          </div>
         )}
-
-        {!loading && !authLoading && !isAuthenticatedAndPaid() && customDecks.length === 0 && (
-          <section className="flashcards-empty">
-            <BookOpen className="w-12 h-12" />
-            <h3>{t('noDecks')}</h3>
-            <p>{t('subscriptionRequired')}</p>
+        {loading ? (
+          <div className="fcl-loading-grid" aria-hidden="true">
+            <div />
+            <div />
+            <div />
+          </div>
+        ) : !hasAccess ? (
+          <section className="fcl-empty">
+            <LockKeyhole size={32} aria-hidden="true" />
+            <h2>{t("subscriptionRequired")}</h2>
+            <p>{t("subtitle")}</p>
             <button
               type="button"
-              onClick={() => navigate('/subscription')}
-              className="btn-primary"
+              className="fcl-button fcl-button-primary"
+              onClick={() => navigate("/subscription")}
             >
-              {t('subscribe')}
+              {t("subscribe")}
             </button>
           </section>
-        )}
-
-        {!loading && !authLoading && visibleCustomDecks.length > 0 && (
-          <section className="flashcards-section">
-            <div className="section-title-row">
-              <span className="section-line green" />
-              <h2>{t('myDecks')}</h2>
-              <strong>{visibleCustomDecks.length}</strong>
-            </div>
-
-            <div className="flashcards-grid">
-              {visibleCustomDecks.map((deck) => (
-                <DeckCard key={deck.id} deck={deck} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {!loading && !authLoading && visibleDefaultDecks.length > 0 && (
-          <section className="flashcards-section">
-            <div className="section-title-row">
-              <span className="section-line blue" />
-              <h2>{t('defaultDecks')}</h2>
-            </div>
-
-            <div className="flashcards-grid">
-              {visibleDefaultDecks.map((deck) => (
-                <DeckCard key={deck.id} deck={deck} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {!loading && !authLoading && filteredDecks.length === 0 && (
-          <section className="flashcards-empty">
-            <BookOpen className="w-12 h-12" />
-            <h3>{t('noDecks')}</h3>
-            <p>{t('noResultMessage')}</p>
+        ) : currentLibrary.error &&
+          !allDecks.length ? null : filteredDecks.length === 0 ? (
+          <section className="fcl-empty">
+            <span className="fcl-empty-icon">
+              {filtersActive ? (
+                <Search size={30} aria-hidden="true" />
+              ) : (
+                <Layers size={30} aria-hidden="true" />
+              )}
+            </span>
+            <h2>{t(filtersActive ? "noResultTitle" : "noDeckTitle")}</h2>
+            <p>{t(filtersActive ? "noResultMessage" : "noDeckDescription")}</p>
             <button
               type="button"
-              onClick={() => {
-                if (isAuthenticatedAndPaid()) {
-                  setView('generate');
-                } else {
-                  alert(t('subscriptionRequired'));
-                }
-              }}
-              className="btn-primary"
-              disabled={!isAuthenticatedAndPaid()}
+              className="fcl-button fcl-button-primary"
+              onClick={filtersActive ? clearFilters : () => setView("generate")}
             >
-              {t('createFromPDF')}
+              {filtersActive ? (
+                <>
+                  <X size={16} aria-hidden="true" />
+                  {t("clearFilters")}
+                </>
+              ) : (
+                <>
+                  <Plus size={16} aria-hidden="true" />
+                  {t("createFromPDF")}
+                </>
+              )}
             </button>
           </section>
+        ) : (
+          <>
+            {renderDeckGroup(
+              ownDecks,
+              t("myDecks"),
+              "fcl-personal-title",
+              <LockKeyhole size={18} aria-hidden="true" />,
+            )}
+            {renderDeckGroup(
+              sharedDecks,
+              t("defaultDecks"),
+              "fcl-shared-title",
+              <Library size={18} aria-hidden="true" />,
+            )}
+            {renderDeckGroup(
+              otherPrivateDecks,
+              t("otherPrivate"),
+              "fcl-other-title",
+              <Layers size={18} aria-hidden="true" />,
+            )}
+          </>
         )}
       </div>
     </div>

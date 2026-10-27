@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { db } from '../firebase/config';
 import api from '../services/api';
+import { getPdfWorkerUrl } from '../utils/pdfWorker';
 
 const FlashcardGenerator = ({ onClose, onDeckSaved, initialCategory = 'general', videoId }) => {
   const { user } = useAuth();
@@ -25,7 +26,7 @@ const FlashcardGenerator = ({ onClose, onDeckSaved, initialCategory = 'general',
     try {
       if (file.size > 10 * 1024 * 1024) throw new Error(ar ? 'الحد الأقصى 10 ميغابايت.' : 'Le PDF doit faire moins de 10 Mo.');
       const pdfjs = await import('pdfjs-dist');
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+      pdfjs.GlobalWorkerOptions.workerSrc = getPdfWorkerUrl();
       const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
       let text = '';
       try {
@@ -45,7 +46,7 @@ const FlashcardGenerator = ({ onClose, onDeckSaved, initialCategory = 'general',
   const generate = async (event) => {
     event.preventDefault();
     if (!user?.uid) return;
-    setBusy(true); setError(''); setSaved(false);
+    setBusy(true); setError(''); setSaved(false); setCards([]);
     try {
       const { data } = await api.post('/ai/xai-chat', {
         messages: [
@@ -57,7 +58,7 @@ const FlashcardGenerator = ({ onClose, onDeckSaved, initialCategory = 'general',
       const content = data.choices?.[0]?.message?.content || '';
       const parsed = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
       const generated = (Array.isArray(parsed.cards) ? parsed.cards : []).slice(0, 30)
-        .filter(card => typeof card.front === 'string' && typeof card.back === 'string' && card.front.trim() && card.back.trim())
+        .filter(card => card && typeof card === 'object' && typeof card.front === 'string' && typeof card.back === 'string' && card.front.trim() && card.back.trim())
         .map((card, index) => ({ id: `card-${index}`, front: card.front.trim(), back: card.back.trim(), category: initialCategory, difficulty: 'medium' }));
       if (!generated.length) throw new Error('Empty flashcards');
       setCards(generated);

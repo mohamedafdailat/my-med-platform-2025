@@ -15,3 +15,13 @@ Le parseur JSON rejette les corps compressés (`inflate: false`) tout en conserv
 La désactivation `status: inactive` masque une vidéo dans la liste et le lecteur. Elle ne constitue pas une révocation d'accès dans les règles Firestore actuelles : une telle politique demande un changement coordonné des requêtes, index et documents historiques. Le contrôle bancaire et l'alimentation complète des métriques restent hors de cette refonte.
 
 Validation reproductible : [tests/README.md](../tests/README.md). Avant publication, exécuter les tests d'accès, les tests frontend, la compilation et le parcours navigateur. Le bundle de démonstration utilise les émulateurs et ne doit jamais être livré en production ; Railway reconstruit avec sa configuration publique Firebase.
+
+## Quiz et Flashcards
+
+Les bibliothèques Quiz et Flashcards reprennent cette présentation avec des styles dédiés (`quiz-library.css` et `flashcard-library.css`). Les routes des lecteurs, du générateur de quiz et les collections Firebase restent identiques.
+
+Dans les quiz, l'espace personnel ou partagé est indépendant de l'origine IA du contenu. La recherche, les filtres de spécialité/origine/activité et le tri s'appliquent localement aux documents déjà autorisés. Les statistiques portent sur le catalogue accessible et l'historique individuel complet, indépendamment des filtres. Le score moyen inclut toutes les notes valides, y compris zéro ; le meilleur score est indiqué pour chaque quiz. Si l'historique est indisponible, ses mesures restent inconnues et le catalogue demeure utilisable.
+
+Les flashcards distinguent les decks personnels, la bibliothèque partagée et, pour l'admin, les autres contenus privés à gérer. Recherche, matière, difficulté et tri restent locaux. Les formats historiques `cards`, `flashcards`, `items` et question/réponse sont normalisés sans inventer de date ou de niveau. Les entrées malformées sont ignorées. La génération PDF et la publication existantes sont conservées, avec sauvegarde privée au nom du compte connecté.
+
+En révision, les cartes évaluées sont comptées une seule fois, même après changement d'avis. La navigation seule ne marque pas une carte comme apprise. Les commandes clavier respectent les champs et boutons actifs, les flèches suivent le sens de lecture et les minuteries sont annulées en quittant la séance. Le bilan fige le temps écoulé et décrit seulement cette séance locale ; aucun progrès durable n'est annoncé ou enregistré artificiellement dans le profil. Les contrôles de publication et de suppression restent limités aux droits existants.

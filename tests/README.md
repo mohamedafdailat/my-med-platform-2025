@@ -40,6 +40,14 @@ npm run test:student-experience --prefix tests
 
 Ce parcours ajoute ses données fictives uniquement au projet d'émulation, active l'abonnement de l'étudiant démo et réinitialise ses tentatives. Il vérifie l'activité réelle sur 7/30 jours, le tableau accessible, les filtres/recherche/tri, les vues grille/liste, le partage par lien interne, l'isolation du semestre, les largeurs 320/390/768 px et l'arabe RTL. Aucun lecteur ni lien signé n'est chargé dans la bibliothèque. Captures dans `.cache/student-experience-qa/`. Les suites navigateur partagent les comptes démo : les exécuter séparément et relancer l'intégration entre les parcours.
 
+Pour les bibliothèques Quiz et Flashcards, après le parcours historique `test:browser` :
+
+```powershell
+npm run test:learning-libraries --prefix tests
+```
+
+Le script prépare uniquement des comptes et contenus fictifs dans les émulateurs locaux. Il vérifie les espaces personnels/partagés, les quiz IA publiés, les résultats à 0 %, les statistiques indépendantes des filtres, les anciens formats de cartes, la publication/retrait par l'admin, l'isolation entre étudiants et semestres, les écrans mobiles et l'arabe RTL. Les requêtes extérieures sont bloquées. Captures dans `.cache/learning-library-qa/`. Le parcours historique vérifie également la génération depuis PDF, la sauvegarde personnelle et son maintien après rechargement.
+
 Exécuter les tests d'intégration **avant** les tests navigateur, jamais en parallèle : ils utilisent les mêmes comptes fictifs. Relancer la suite d'intégration avant chaque nouveau parcours navigateur pour rétablir les rôles et statuts initiaux.
 
 Le parcours Chrome vérifie la connexion et son retour à la page demandée, le profil persistant, le rendu à 390 px, l'inscription, la gestion admin, l'extraction d'un PDF synthétique, la génération/enregistrement de flashcards, leur confidentialité entre deux comptes, puis la publication et le retrait par l'admin. Captures : `.cache/production-audit/` (ignoré par Git).

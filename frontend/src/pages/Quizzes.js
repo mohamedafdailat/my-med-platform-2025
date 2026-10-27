@@ -1,645 +1,136 @@
-import ContentPublication from '../components/ContentPublication';
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, BookOpen, Brain, Check, CheckCircle2, ChevronDown, CircleHelp, FolderLock, GraduationCap, Layers, ListFilter, RefreshCw, Search, ShieldCheck, Sparkles, Target, Trophy, WandSparkles, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getVisibleDocuments, getOwnQuizAttempts } from '../services/contentService';
-import { toDate } from '../utils/dates';
-import debounce from 'lodash/debounce';
-import { toast } from 'react-toastify';
+import ContentPublication from '../components/ContentPublication';
+import { hasAdminAccess } from '../utils/access';
+import { filterQuizzes, normalizeQuiz, quizCategoryLabel, quizHistory, quizInSpace, quizText, quizTitle } from '../utils/quizzes';
+import '../styles/quiz-library.css';
+
+const COPY = {
+  fr: {
+    page: 'Vos quiz', dashboard: 'Mon tableau de bord', eyebrow: 'LE SAVOIR PASSE À L’ACTION', title: 'Une question.', accent: 'Un pas de plus.',
+    subtitle: 'Mettez vos connaissances à l’épreuve, repérez vos points forts et retrouvez le plaisir de progresser.', generate: 'Créer un quiz avec l’IA', explore: 'Explorer les quiz',
+    next: 'VOTRE PROCHAINE ÉTAPE', nextTitle: 'À vous de jouer.', nextDescription: 'Un quiz pour mobiliser vos connaissances. Une nouvelle occasion de comprendre.', featured: 'À découvrir', start: 'Commencer', again: 'Refaire le quiz', noQuestions: 'Questions à venir',
+    accessible: 'Quiz accessibles', accessibleHint: 'Dans tous vos espaces', doneStat: 'Quiz déjà effectués', doneHint: 'Quiz distincts dans votre historique', average: 'Score moyen', averageHint: 'Sur toutes vos tentatives notées', own: 'Quiz personnels', ownHint: 'Vos créations privées',
+    catalog: 'Votre terrain d’entraînement', catalogHint: 'Choisissez une notion, puis faites le premier pas.', all: 'Tout explorer', library: 'Bibliothèque', personal: 'Mes quiz privés', admin: 'Privés à gérer', spaces: 'Choisir un espace de quiz',
+    search: 'Rechercher une notion, un titre, un cours…', searchLabel: 'Rechercher dans les quiz', clear: 'Effacer la recherche', category: 'Spécialité', allCategories: 'Toutes les spécialités', source: 'Origine du quiz', allSources: 'Toutes les origines', ai: 'Généré avec l’IA', standard: 'Autres quiz', progress: 'Votre activité', allProgress: 'Tous les quiz', completed: 'Déjà effectué', todo: 'À découvrir',
+    sort: 'Trier les quiz', newest: 'Plus récents', oldest: 'Plus anciens', titleSort: 'Titre : A à Z', questionsSort: 'Nombre de questions', reset: 'Réinitialiser les filtres', results: 'quiz dans cette sélection', refresh: 'Actualiser les quiz',
+    loading: 'Chargement de vos quiz…', historyUnavailable: 'Votre historique est momentanément indisponible. Vous pouvez continuer à explorer et à passer des quiz.', historyUnknown: 'Historique indisponible', historyPending: 'Historique en cours', error: 'Vos quiz font une petite pause.', errorHint: 'Vérifiez votre connexion et réessayez pour retrouver votre sélection.', retry: 'Réessayer',
+    empty: 'Votre prochaine découverte se prépare.', emptyHint: 'Les quiz disponibles pour votre semestre et vos créations personnelles apparaîtront ici.', emptyPersonal: 'Vos idées ont leur place ici.', emptyPersonalHint: 'Créez un quiz à partir de votre cours et retrouvez-le dans votre espace privé.', noResults: 'Le bon quiz est peut-être juste à côté.', noResultsHint: 'Essayez une autre notion ou élargissez vos filtres.',
+    untitled: 'Quiz sans titre', noDescription: 'Mobilisez vos acquis, question après question.', questions: 'questions', question: 'question', best: 'Meilleur score', noScore: 'Pas encore de note', unclassified: 'À classer', privateAdmin: 'Privé · administration', shared: 'Bibliothèque partagée', private: 'Votre espace privé', general: 'Tous les semestres', course: 'Cours',
+    difficulty: { easy: 'Découverte', medium: 'Intermédiaire', hard: 'Approfondissement' }, method: 'Testez. Comprenez. Recommencez.', methodHint: 'Chaque tentative vous aide à repérer les notions à revoir. Prenez le temps de lire les explications et revenez quand vous le souhaitez.', cards: 'Réviser avec les flashcards',
+    categories: { 'general-medicine': 'Médecine générale', cardiology: 'Cardiologie', pharmacy: 'Pharmacie', technology: 'Technologie médicale', dentaire: 'Santé dentaire', other: 'Autres', anatomy: 'Anatomie', physiology: 'Physiologie', pharmacology: 'Pharmacologie', pathology: 'Pathologie', clinical: 'Pratique clinique', terminology: 'Terminologie médicale' },
+  },
+  ar: {
+    page: 'اختباراتك', dashboard: 'لوحة تحكمي', eyebrow: 'حوّل المعرفة إلى ممارسة', title: 'سؤال واحد.', accent: 'خطوة إلى الأمام.', subtitle: 'اختبر معارفك، واكتشف نقاط قوتك، واستمتع بالتقدّم في مراجعاتك.', generate: 'أنشئ اختباراً بالذكاء الاصطناعي', explore: 'استكشف الاختبارات',
+    next: 'خطوتك التالية', nextTitle: 'حان دورك.', nextDescription: 'اختبار لاستحضار معارفك وفرصة جديدة للفهم.', featured: 'للاكتشاف', start: 'ابدأ الاختبار', again: 'أعد الاختبار', noQuestions: 'الأسئلة قريباً', accessible: 'الاختبارات المتاحة', accessibleHint: 'في جميع مساحاتك', doneStat: 'اختبارات أنجزتها', doneHint: 'اختبارات مختلفة في سجلك', average: 'متوسط النتائج', averageHint: 'جميع محاولاتك ذات النتائج', own: 'اختبارات شخصية', ownHint: 'إبداعاتك الخاصة',
+    catalog: 'مساحتك للتدرّب', catalogHint: 'اختر مفهوماً وابدأ الخطوة الأولى.', all: 'استكشف الكل', library: 'المكتبة', personal: 'اختباراتي الخاصة', admin: 'محتوى خاص للإدارة', spaces: 'اختر مساحة الاختبارات', search: 'ابحث عن مفهوم أو عنوان أو درس…', searchLabel: 'البحث في الاختبارات', clear: 'مسح البحث', category: 'التخصص', allCategories: 'جميع التخصصات', source: 'مصدر الاختبار', allSources: 'جميع المصادر', ai: 'مولّد بالذكاء الاصطناعي', standard: 'اختبارات أخرى', progress: 'نشاطك', allProgress: 'جميع الاختبارات', completed: 'سبق إنجازه', todo: 'للاكتشاف',
+    sort: 'ترتيب الاختبارات', newest: 'الأحدث أولاً', oldest: 'الأقدم أولاً', titleSort: 'حسب العنوان', questionsSort: 'عدد الأسئلة', reset: 'إعادة ضبط المرشحات', results: 'اختبار في هذه المجموعة', refresh: 'تحديث الاختبارات', loading: 'جارٍ تحميل اختباراتك…', historyUnavailable: 'سجلك غير متاح مؤقتاً. يمكنك متابعة الاستكشاف وإجراء الاختبارات.', historyUnknown: 'السجل غير متاح', historyPending: 'جارٍ تحميل السجل', error: 'الاختبارات في استراحة قصيرة.', errorHint: 'تحقق من اتصالك ثم أعد المحاولة لاستعادة مجموعتك.', retry: 'إعادة المحاولة',
+    empty: 'اكتشافك القادم قيد التحضير.', emptyHint: 'ستظهر هنا الاختبارات المتاحة لفصلك وإبداعاتك الشخصية.', emptyPersonal: 'لأفكارك مكان هنا.', emptyPersonalHint: 'أنشئ اختباراً من درسك واحتفظ به في مساحتك الخاصة.', noResults: 'اختبارك المناسب قريب منك.', noResultsHint: 'جرّب مفهوماً آخر أو وسّع المرشحات.', untitled: 'اختبار بدون عنوان', noDescription: 'استحضر معارفك، سؤالاً بعد سؤال.', questions: 'أسئلة', question: 'سؤال', best: 'أفضل نتيجة', noScore: 'لا توجد نتيجة بعد', unclassified: 'بحاجة إلى تصنيف', privateAdmin: 'خاص · الإدارة', shared: 'المكتبة المشتركة', private: 'مساحتك الخاصة', general: 'جميع الفصول', course: 'الدرس',
+    difficulty: { easy: 'اكتشاف', medium: 'متوسط', hard: 'تعمّق' }, method: 'اختبر. افهم. حاول من جديد.', methodHint: 'تساعدك كل محاولة على تحديد المفاهيم التي تحتاج إلى مراجعة. اقرأ الشروحات بتأنٍ وعُد متى شئت.', cards: 'راجع باستخدام البطاقات',
+    categories: { 'general-medicine': 'الطب العام', cardiology: 'أمراض القلب', pharmacy: 'الصيدلة', technology: 'التكنولوجيا الطبية', dentaire: 'صحة الأسنان', other: 'أخرى', anatomy: 'التشريح', physiology: 'الفسيولوجيا', pharmacology: 'علم الأدوية', pathology: 'علم الأمراض', clinical: 'الممارسة السريرية', terminology: 'المصطلحات الطبية' },
+  },
+};
 
 const Quizzes = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
-  const navigate = useNavigate();
-  const [quizzes, setQuizzes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedTab, setSelectedTab] = useState('all');
-  const [retryCount, setRetryCount] = useState(0);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const searchInputRef = useRef(null);
-  const suggestionsRef = useRef(null);
-
-  const texts = useMemo(() => ({
-    fr: {
-      title: 'Bibliothèque de Quiz',
-      loading: 'Chargement des quiz...',
-      error: 'Erreur lors du chargement des quiz',
-      indexError: 'Erreur de requête : un index Firestore est requis. Contactez l\'administrateur ou créez l\'index via la console Firebase.',
-      noQuizzes: 'Aucun quiz disponible',
-      noResults: 'Aucun résultat trouvé pour votre recherche',
-      searchPlaceholder: 'Rechercher des quiz...',
-      clearSearch: 'Effacer la recherche',
-      categories: {
-        all: 'Toutes les catégories',
-        cardiology: 'Cardiologie',
-        other: 'Autres',
-        dentaire: 'Santé dentaire',
-        'general-medicine': 'Médecine générale',
-        pharmacy: 'Pharmacie',
-        technology: 'Technologie médicale',
-        anatomy: 'Anatomie',
-        physiology: 'Physiologie',
-        pharmacology: 'Pharmacologie',
-        pathology: 'Pathologie',
-        clinical: 'Pratique clinique',
-        terminology: 'Terminologie médicale',
-      },
-      tabs: {
-        all: 'Tous',
-        aiGenerated: 'Générés par IA',
-        predefined: 'Prédéfinis',
-      },
-      retry: 'Réessayer',
-      retrying: 'Tentative de reconnexion...',
-      noDescription: 'Aucune description disponible',
-      takeQuiz: 'Passer le quiz',
-      reviewQuiz: 'Réviser le quiz',
-      generateQuiz: 'Générer un quiz',
-      refresh: 'Actualiser',
-      backToTop: 'Retour en haut',
-      categoryLabel: 'Filtrer par catégorie',
-      suggestionsLabel: 'Suggestions de recherche',
-      stats: {
-        totalQuizzes: 'Total des quiz',
-        completed: 'Quiz terminés',
-        avgScore: 'Score moyen',
-        generated: 'Quiz générés',
-      },
-      difficulty: {
-        easy: 'Facile',
-        medium: 'Moyen',
-        hard: 'Difficile',
-      },
-      completed: 'Terminé',
-      course: 'Cours',
-      questions: 'Questions',
-    },
-    ar: {
-      title: 'مكتبة الاختبارات',
-      loading: 'جاري تحميل الاختبارات...',
-      error: 'خطأ في تحميل الاختبارات',
-      indexError: 'خطأ في الاستعلام: يتطلب فهرس Firestore. اتصل بالمسؤول أو قم بإنشاء الفهرس عبر وحدة تحكم Firebase.',
-      noQuizzes: 'لا توجد اختبارات متاحة',
-      noResults: 'لا توجد نتائج لبحثك',
-      searchPlaceholder: 'البحث عن اختبارات...',
-      clearSearch: 'مسح البحث',
-      categories: {
-        all: 'جميع الفئات',
-        'general-medicine': 'الطب العام',
-        cardiology: 'أمراض القلب',
-        pharmacy: 'الصيدلة',
-        technology: 'التكنولوجيا الطبية',
-        other: 'أخرى',
-        dentaire: 'الصحة الفموية',
-        anatomy: 'تشريح',
-        physiology: 'فسيولوجيا',
-        pharmacology: 'علم الصيدلة',
-        pathology: 'علم الأمراض',
-        clinical: 'الممارسة السريرية',
-        terminology: 'المصطلحات الطبية',
-      },
-      tabs: {
-        all: 'الكل',
-        aiGenerated: 'مولدة بالذكاء الاصطناعي',
-        predefined: 'محددة مسبقًا',
-      },
-      retry: 'إعادة المحاولة',
-      retrying: 'جاري إعادة المحاولة...',
-      noDescription: 'لا يوجد وصف متاح',
-      takeQuiz: 'إجراء الاختبار',
-      reviewQuiz: 'مراجعة الاختبار',
-      generateQuiz: 'إنشاء اختبار',
-      refresh: 'تحديث',
-      backToTop: 'العودة إلى الأعلى',
-      categoryLabel: 'تصفية حسب الفئة',
-      suggestionsLabel: 'اقتراحات البحث',
-      stats: {
-        totalQuizzes: 'إجمالي الاختبارات',
-        completed: 'الاختبارات المكتملة',
-        avgScore: 'متوسط الدرجات',
-        generated: 'اختبارات مولدة',
-      },
-      difficulty: {
-        easy: 'سهل',
-        medium: 'متوسط',
-        hard: 'صعب',
-      },
-      completed: 'مكتمل',
-      course: 'الدورة',
-      questions: 'أسئلة',
-    },
-  }), [language]);
-
-  const t = texts[language] || texts.fr;
-  const isRTL = language === 'ar';
-
-  const fetchQuizzes = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [documents, attempts] = await Promise.all([
-        getVisibleDocuments('quizzes', user, { onlyOwn: selectedTab === 'aiGenerated' }),
-        getOwnQuizAttempts(user?.uid),
-      ]);
-      const processedQuizzes = documents.filter(doc => doc.data().status !== 'inactive').map((doc) => ({
-        id: doc.id,
-        title: doc.data().title || { fr: 'Titre non disponible', ar: 'عنوان غير متاح' },
-        description: doc.data().description || { fr: '', ar: '' },
-        category: doc.data().category || 'other',
-        type: doc.data().type || 'predefined',
-        creatorId: doc.data().creatorId || 'anonymous',
-        visibility: doc.data().visibility || 'private',
-        semester: doc.data().semester || '',
-        createdAt: toDate(doc.data().createdAt) || new Date(0),
-        attempts: attempts.filter(attempt => attempt.quizId === doc.id),
-        bestScore: Math.max(0, ...attempts.filter(attempt => attempt.quizId === doc.id).map(attempt => attempt.score || 0)),
-        difficulty: doc.data().difficulty || 'medium',
-        questions: doc.data().questions || [],
-        course: doc.data().course || 'Cours non spécifié',
-      }));
-      setQuizzes(processedQuizzes);
-      setRetryCount(0);
-    } catch (err) {
-      let errorMessage = t.error;
-      if (err.code === 'permission-denied') {
-        errorMessage += ' (Accès refusé)';
-      } else if (err.code === 'unavailable') {
-        errorMessage += ' (Service indisponible)';
-      } else if (err.message.includes('index')) {
-        errorMessage = t.indexError;
-        console.error('Index error details:', err.message);
-      } else {
-        errorMessage += `: ${err.message}`;
-      }
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-      setIsRetrying(false);
-    }
-  }, [t.error, t.indexError, user, selectedTab]);
-
-  const fetchSuggestions = useCallback(
-    debounce(async (term) => {
-      if (!term) {
-        setSuggestions([]);
-        return;
-      }
-      try {
-        const documents = await getVisibleDocuments('quizzes', user);
-        const matchingTitles = documents
-          .filter((doc) => {
-            const title = doc.data().title?.[language] || doc.data().title?.fr || '';
-            const course = doc.data().course || '';
-            return (
-              title.toLowerCase().includes(term.toLowerCase()) ||
-              course.toLowerCase().includes(term.toLowerCase())
-            );
-          })
-          .map((doc) => doc.data().title?.[language] || doc.data().title?.fr)
-          .slice(0, 5);
-        setSuggestions([...new Set(matchingTitles)]); // Remove duplicates
-      } catch (err) {
-        console.error('Erreur lors de la récupération des suggestions:', err);
-        toast.error(t.error);
-      }
-    }, 300),
-    [language, t.error, user]
-  );
-
-  const handleRetry = useCallback(async () => {
-    if (retryCount >= 3) {
-      setError(t.error + ' (Nombre maximum de tentatives atteint)');
-      toast.error(t.error + ' (Nombre maximum de tentatives atteint)');
-      return;
-    }
-    setIsRetrying(true);
-    setRetryCount((prev) => prev + 1);
-    const delay = Math.pow(2, retryCount) * 1000;
-    setTimeout(() => {
-      fetchQuizzes();
-    }, delay);
-  }, [retryCount, fetchQuizzes, t.error]);
+  const t = COPY[language] || COPY.fr;
+  const [refresh, setRefresh] = useState(0);
+  const [catalog, setCatalog] = useState({ access: null, items: null, error: false });
+  const [attempts, setAttempts] = useState({ owner: null, items: null, error: false });
+  const [space, setSpace] = useState('all');
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
+  const [source, setSource] = useState('all');
+  const [progress, setProgress] = useState('all');
+  const [sort, setSort] = useState('newest');
+  const uid = user?.uid;
+  const administrator = hasAdminAccess(user?.customClaims);
+  const accessUser = useMemo(() => ({ uid: user?.uid, semester: user?.semester, customClaims: { role: user?.customClaims?.role, adminAccessVersion: user?.customClaims?.adminAccessVersion, unlimitedAccess: user?.customClaims?.unlimitedAccess } }), [user?.uid, user?.semester, user?.customClaims?.role, user?.customClaims?.adminAccessVersion, user?.customClaims?.unlimitedAccess]);
 
   useEffect(() => {
-    fetchQuizzes();
-  }, [fetchQuizzes]);
+    let active = true;
+    setCatalog({ access: accessUser, items: null, error: false });
+    setAttempts({ owner: uid, items: null, error: false });
+    if (!uid) return () => { active = false; };
+    getVisibleDocuments('quizzes', accessUser).then(documents => {
+      const items = documents.map(document => normalizeQuiz(document.id, document.data())).filter(Boolean);
+      if (active) setCatalog({ access: accessUser, items, error: false });
+    }).catch(() => { if (active) setCatalog({ access: accessUser, items: null, error: true }); });
+    getOwnQuizAttempts(uid).then(items => {
+      if (active) setAttempts({ owner: uid, items, error: false });
+    }).catch(() => { if (active) setAttempts({ owner: uid, items: null, error: true }); });
+    return () => { active = false; };
+  }, [accessUser, uid, refresh]);
 
-  const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearchTerm(value);
-    fetchSuggestions(value);
-  };
+  const currentCatalog = catalog.access === accessUser ? catalog : { items: null, error: false };
+  const currentAttempts = attempts.owner === uid ? attempts : { items: null, error: false };
+  const quizzes = useMemo(() => currentCatalog.items || [], [currentCatalog.items]);
+  const loading = currentCatalog.items === null && !currentCatalog.error;
+  const historyReady = currentAttempts.items !== null && !currentAttempts.error;
+  const history = useMemo(() => quizHistory(currentAttempts.items, uid), [currentAttempts.items, uid]);
+  const activeSpace = space === 'admin' && !administrator ? 'all' : space;
+  const filtered = useMemo(() => filterQuizzes(quizzes, { uid, language, search, space: activeSpace, category, source, progress: historyReady ? progress : 'all', sort, history: history.byQuiz, categoryNames: t.categories }), [quizzes, uid, language, search, activeSpace, category, source, progress, sort, historyReady, history.byQuiz, t.categories]);
+  const categories = useMemo(() => [...new Set(quizzes.map(quiz => quiz.category))].sort((a, b) => quizCategoryLabel(a, t.categories).localeCompare(quizCategoryLabel(b, t.categories), language === 'ar' ? 'ar' : 'fr')), [quizzes, t.categories, language]);
+  const featured = useMemo(() => [...quizzes].sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0) || a.id.localeCompare(b.id)).find(quiz => quiz.questionCount > 0 && (!historyReady || !history.byQuiz.has(quiz.id))) || quizzes.find(quiz => quiz.questionCount > 0), [quizzes, historyReady, history.byQuiz]);
+  const reload = () => setRefresh(value => value + 1);
+  const reset = () => { setSpace('all'); setSearch(''); setCategory('all'); setSource('all'); setProgress('all'); setSort('newest'); };
+  const filteredSelection = search || category !== 'all' || source !== 'all' || (historyReady && progress !== 'all');
+  const locale = language === 'ar' ? 'ar-MA' : 'fr-FR';
+  const number = value => value === null ? '—' : new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value);
+  const title = quiz => quizTitle(quiz.title, language);
+  const categoryLabel = quiz => quizCategoryLabel(quiz.category, t.categories);
+  const spaces = [{ value: 'all', label: t.all, icon: Layers }, { value: 'library', label: t.library, icon: BookOpen }, { value: 'personal', label: t.personal, icon: FolderLock }, ...(administrator ? [{ value: 'admin', label: t.admin, icon: ShieldCheck }] : [])];
+  const stats = [
+    { key: 'accessible', icon: Brain, value: currentCatalog.items === null ? '—' : number(quizzes.length), label: t.accessible, hint: t.accessibleHint },
+    { key: 'completed', icon: CheckCircle2, value: historyReady ? number(history.completed) : '—', label: t.doneStat, hint: t.doneHint },
+    { key: 'average', icon: Trophy, value: historyReady && history.average !== null ? `${number(history.average)} %` : '—', label: t.average, hint: t.averageHint },
+    { key: 'personal', icon: FolderLock, value: currentCatalog.items === null ? '—' : number(quizzes.filter(quiz => quizInSpace(quiz, 'personal', uid)).length), label: t.own, hint: t.ownHint },
+  ];
 
-  const handleSuggestionClick = (suggestion) => {
-    setSearchTerm(suggestion);
-    setSuggestions([]);
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  };
-
-  const clearSearch = () => {
-    setSearchTerm('');
-    setSuggestions([]);
-    if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  };
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const filteredQuizzes = useMemo(() => {
-    return quizzes.filter((quiz) => {
-      const title = quiz.title[language] || quiz.title.fr || '';
-      const description = quiz.description[language] || quiz.description.fr || '';
-      const course = quiz.course || '';
-      const matchesSearch =
-        title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        course.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || quiz.category === selectedCategory;
-      const matchesTab =
-        selectedTab === 'all' ||
-        (selectedTab === 'aiGenerated' && quiz.type === 'ai-generated') ||
-        (selectedTab === 'predefined' && quiz.type === 'predefined');
-      return matchesSearch && matchesCategory && matchesTab;
-    });
-  }, [quizzes, searchTerm, selectedCategory, selectedTab, language]);
-
-  const uniqueCategories = useMemo(() => {
-    const categories = new Set(quizzes.map((quiz) => quiz.category));
-    return ['all', ...categories].map((cat) => ({
-      key: cat,
-      label: t.categories[cat] || cat,
-    }));
-  }, [quizzes, t.categories]);
-
-  const userStats = useMemo(() => {
-    if (!user) return { totalQuizzes: 0, completed: 0, avgScore: 0, generated: 0 };
-    const userQuizzes = quizzes.filter((quiz) => quiz.attempts.some((attempt) => attempt.userId === user.uid));
-    const completed = userQuizzes.length;
-    const totalScore = userQuizzes.reduce((sum, quiz) => {
-      const userAttempt = quiz.attempts.find((attempt) => attempt.userId === user.uid);
-      return sum + (userAttempt?.score || 0);
-    }, 0);
-    const avgScore = completed ? (totalScore / completed).toFixed(1) : 0;
-    const generated = quizzes.filter((quiz) => quiz.creatorId === user.uid && quiz.type === 'ai-generated').length;
-    return {
-      totalQuizzes: quizzes.length,
-      completed,
-      avgScore,
-      generated,
-    };
-  }, [quizzes, user]);
-
-  const LoadingComponent = () => (
-    <main className={`flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 ${isRTL ? 'rtl' : 'ltr'}`}>
-      <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4" aria-label={isRetrying ? t.retrying : t.loading}></div>
-        <p className="text-gray-600 text-lg font-medium">{isRetrying ? t.retrying : t.loading}</p>
-        {isRetrying && <p className="text-gray-500 text-sm mt-2">Tentative {retryCount}/3</p>}
+  return <div className="quiz-library" dir={language === 'ar' ? 'rtl' : 'ltr'} lang={language}><div className="ql-container">
+    <div className="ql-page-label"><span><Brain size={19} aria-hidden="true" />{t.page}</span><Link to="/dashboard">{t.dashboard}<ArrowRight size={15} aria-hidden="true" /></Link></div>
+    <section className="ql-hero" aria-labelledby="quizzes-title">
+      <div className="ql-hero-copy"><span className="ql-eyebrow"><span />{t.eyebrow}</span><h1 id="quizzes-title">{t.title}<span>{t.accent}</span></h1><p>{t.subtitle}</p><div className="ql-hero-actions"><a href="#quiz-catalog" className="ql-button ql-button-white">{t.explore}<ArrowRight size={17} aria-hidden="true" /></a><Link to="/quiz-generator" className="ql-hero-generate"><WandSparkles size={17} aria-hidden="true" />{t.generate}</Link></div></div>
+      <div className="ql-feature-zone"><div className="ql-orbit" aria-hidden="true" />{featured && !loading && !currentCatalog.error ? <Link to={`/quizzes/${encodeURIComponent(featured.id)}`} className="ql-featured"><span className="ql-feature-eyebrow"><Sparkles size={14} aria-hidden="true" />{t.featured}</span><div className="ql-feature-icon" aria-hidden="true"><Brain size={35} strokeWidth={1.5} /><span><Check size={13} /></span></div><h2>{title(featured)}</h2><p>{categoryLabel(featured)} · {number(featured.questionCount)} {featured.questionCount === 1 ? t.question : t.questions}</p><span className="ql-feature-action">{historyReady && history.byQuiz.has(featured.id) ? t.again : t.start}<ArrowRight size={17} aria-hidden="true" /></span></Link> : <div className="ql-hero-note"><div className="ql-hero-note-icon"><Target size={44} strokeWidth={1.4} aria-hidden="true" /></div><span>{t.next}</span><h2>{t.nextTitle}</h2><p>{t.nextDescription}</p></div>}</div>
+    </section>
+    <section className="ql-stats" aria-label={t.page}>{stats.map(({ key, icon: Icon, value, label, hint }) => <article className={`ql-stat ql-stat-${key}`} key={key}><span className="ql-stat-icon"><Icon size={21} aria-hidden="true" /></span><div><strong data-quiz-stat={key}>{value}</strong><h2>{label}</h2><p>{hint}</p></div></article>)}</section>
+    <section id="quiz-catalog" className="ql-catalog" aria-labelledby="ql-catalog-title" aria-busy={loading}>
+      <div className="ql-section-heading"><div><span className="ql-kicker">{t.page}</span><h2 id="ql-catalog-title">{t.catalog}</h2><p>{t.catalogHint}</p></div><button type="button" className="ql-icon-button" onClick={reload} disabled={loading} aria-label={t.refresh} title={t.refresh}><RefreshCw size={19} className={loading ? 'ql-spinning' : ''} aria-hidden="true" /></button></div>
+      <div className="ql-spaces" role="group" aria-label={t.spaces}>{spaces.map(({ value, label, icon: Icon }) => <button type="button" key={value} data-quiz-space={value} aria-pressed={activeSpace === value} className={activeSpace === value ? 'is-active' : ''} onClick={() => setSpace(value)}><Icon size={16} aria-hidden="true" /><span>{label}</span><b>{currentCatalog.items === null ? '—' : number(quizzes.filter(quiz => quizInSpace(quiz, value, uid)).length)}</b></button>)}</div>
+      <div className="ql-controls"><div className="ql-toolbar"><div className="ql-search"><Search size={19} aria-hidden="true" /><label htmlFor="quiz-search" className="sr-only">{t.searchLabel}</label><input id="quiz-search" type="search" value={search} placeholder={t.search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setSearch(''); }} aria-controls="quizzes-grid" />{search && <button type="button" onClick={() => setSearch('')} aria-label={t.clear}><X size={17} aria-hidden="true" /></button>}</div><div className="ql-sort"><ListFilter size={17} aria-hidden="true" /><label htmlFor="quiz-sort" className="sr-only">{t.sort}</label><select id="quiz-sort" value={sort} onChange={event => setSort(event.target.value)}><option value="newest">{t.newest}</option><option value="oldest">{t.oldest}</option><option value="title">{t.titleSort}</option><option value="questions">{t.questionsSort}</option></select></div></div>
+        <div className="ql-selects">{[
+          { id: 'quiz-category', label: t.category, value: category, change: setCategory, options: [['all', t.allCategories], ...categories.map(key => [key, quizCategoryLabel(key, t.categories)])] },
+          { id: 'quiz-source', label: t.source, value: source, change: setSource, options: [['all', t.allSources], ['ai-generated', t.ai], ['standard', t.standard]] },
+          { id: 'quiz-status', label: t.progress, value: historyReady ? progress : 'all', change: setProgress, disabled: !historyReady, options: [['all', t.allProgress], ['completed', t.completed], ['todo', t.todo]] },
+        ].map(control => <div className="ql-select" key={control.id}><label htmlFor={control.id}>{control.label}</label><div><select id={control.id} value={control.value} onChange={event => control.change(event.target.value)} disabled={control.disabled}>{control.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><ChevronDown size={15} aria-hidden="true" /></div></div>)}</div>
       </div>
-    </main>
-  );
-
-  const ErrorComponent = () => (
-    <main className={`flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 ${isRTL ? 'rtl' : 'ltr'}`}>
-      <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <div className="flex items-center mb-4">
-          <svg className="w-6 h-6 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="text-lg font-semibold text-red-500">Erreur de chargement</h3>
-        </div>
-        <p className="text-red-500 mb-4 text-center">{error}</p>
-        <button
-          onClick={handleRetry}
-          disabled={isRetrying || retryCount >= 3}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-          aria-disabled={isRetrying || retryCount >= 3}
-          aria-label={isRetrying ? t.retrying : t.retry}
-        >
-          {isRetrying ? t.retrying : t.retry}
-        </button>
-      </div>
-    </main>
-  );
-
-  const QuizCard = ({ quiz }) => {
-    const isCompleted = quiz.attempts.some((attempt) => attempt.userId === user?.uid);
-    return (
-      <div
-        className="bg-white rounded-xl shadow-lg p-6 relative group border border-gray-100 hover:shadow-xl transition-all duration-200"
-        role="article"
-        aria-labelledby={`quiz-title-${quiz.id}`}
-      >
-        <div className="flex justify-between items-start mb-3">
-          <h3
-            id={`quiz-title-${quiz.id}`}
-            className="font-semibold text-xl text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors"
-          >
-            {quiz.title[language] || quiz.title.fr}
-          </h3>
-          {isCompleted && (
-            <span className="bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center">
-              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              {t.completed}
-            </span>
-          )}
-        </div>
-        <p className="text-gray-600 text-base mb-3 line-clamp-2">
-          {t.course}: {quiz.course}
-        </p>
-        <p className="text-gray-600 text-base mb-3 line-clamp-3">
-          {quiz.description[language] || quiz.description.fr || t.noDescription}
-        </p>
-        <div className="flex items-center justify-between text-sm mb-4">
-          <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700">
-            {t.categories[quiz.category] || quiz.category}
-          </span>
-          <span
-            className={`px-3 py-1 rounded-full ${
-              quiz.difficulty === 'easy' ? 'bg-green-100 text-green-800' :
-              quiz.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-              'bg-red-100 text-red-800'
-            }`}
-          >
-            {t.difficulty[quiz.difficulty]}
-          </span>
-        </div>
-        <div className="flex items-center justify-between text-sm mb-4">
-          <span className="text-gray-500">
-            {quiz.type === 'ai-generated' ? t.tabs.aiGenerated : t.tabs.predefined}
-          </span>
-          <span className="text-gray-500">
-            {quiz.questions.length} {t.questions}
-          </span>
-        </div>
-        <div className="flex items-center justify-between text-sm mb-4">
-          <span className="text-gray-500">
-            {new Date(quiz.createdAt).toLocaleDateString(language === 'fr' ? 'fr-FR' : 'ar-MA')}
-          </span>
-          {quiz.bestScore > 0 && (
-            <span className="text-gray-500">{t.stats.avgScore}: {quiz.bestScore}%</span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <NavLink
-            to={`/quizzes/${quiz.id}`}
-            className="flex-1 text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm"
-            aria-label={isCompleted ? t.reviewQuiz : t.takeQuiz}
-          >
-            <svg className="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01m-.01 4h.01" />
-            </svg>
-            {isCompleted ? t.reviewQuiz : t.takeQuiz}
-          </NavLink>
-        </div>
-        <p className="mt-3 text-xs text-gray-500">{quiz.visibility === 'shared' ? (isRTL ? 'مكتبة مشتركة' : 'Bibliothèque partagée') : (isRTL ? 'اختبار شخصي' : 'Quiz personnel')}</p>
-        {user?.customClaims?.role === 'admin' && <ContentPublication collectionName="quizzes" item={quiz} language={language} onUpdated={fetchQuizzes} />}
-      </div>
-    );
-  };
-
-  if (loading) return <LoadingComponent />;
-  if (error) return <ErrorComponent />;
-
-  return (
-    <main className={`flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-12 ${isRTL ? 'rtl' : 'ltr'}`} aria-labelledby="quizzes-title">
-      <header className="mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
-          <h1 id="quizzes-title" className="text-4xl font-bold text-gray-900 mb-4 md:mb-0">{t.title}</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-lg text-gray-700 font-medium">
-              {filteredQuizzes.length} {language === 'fr' ? 'quiz' : 'اختبار'}{filteredQuizzes.length !== 1 ? language === 'fr' ? 'zes' : 'ات' : ''}
-            </span>
-            <button
-              onClick={fetchQuizzes}
-              disabled={loading}
-              className="p-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-all duration-200"
-              title={t.refresh}
-              aria-label={t.refresh}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-            <NavLink
-              to="/quiz-generator"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm"
-              aria-label={t.generateQuiz}
-            >
-              <svg className="w-4 h-4 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              {t.generateQuiz}
-            </NavLink>
-          </div>
-        </div>
-        {user && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-white rounded-lg shadow">
-            <div className="text-center">
-              <p className="text-gray-600">{t.stats.totalQuizzes}</p>
-              <p className="text-xl font-semibold">{userStats.totalQuizzes}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-gray-600">{t.stats.completed}</p>
-              <p className="text-xl font-semibold">{userStats.completed}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-gray-600">{t.stats.avgScore}</p>
-              <p className="text-xl font-semibold">{userStats.avgScore}%</p>
-            </div>
-            <div className="text-center">
-              <p className="text-gray-600">{t.stats.generated}</p>
-              <p className="text-xl font-semibold">{userStats.generated}</p>
-            </div>
-          </div>
-        )}
-      </header>
-
-      <section className="mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex space-x-2 mb-4 md:mb-0">
-            {Object.keys(t.tabs).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setSelectedTab(tab)}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${
-                  selectedTab === tab
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-                aria-label={`${t.categoryLabel}: ${t.tabs[tab]}`}
-                aria-pressed={selectedTab === tab}
-              >
-                {t.tabs[tab]}
-              </button>
-            ))}
-          </div>
-          <div className="relative flex-1">
-            <input
-              type="search"
-              placeholder={t.searchPlaceholder}
-              value={searchTerm}
-              onChange={handleSearchChange}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  searchInputRef.current?.focus();
-                } else if (e.key === 'ArrowDown' && suggestions.length > 0) {
-                  suggestionsRef.current?.children[0]?.focus();
-                } else if (e.key === 'Escape') {
-                  clearSearch();
-                }
-              }}
-              ref={searchInputRef}
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              aria-label={t.searchPlaceholder}
-              aria-controls="quizzes-grid"
-            />
-            <svg
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {searchTerm && (
-              <button
-                onClick={clearSearch}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300 transition-all duration-200"
-                aria-label={t.clearSearch}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-            {suggestions.length > 0 && (
-              <ul
-                ref={suggestionsRef}
-                className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-2 max-h-60 overflow-y-auto"
-                role="listbox"
-                aria-label={t.suggestionsLabel}
-              >
-                {suggestions.map((suggestion, index) => (
-                  <li
-                    key={index}
-                    tabIndex={0}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSuggestionClick(suggestion);
-                      if (e.key === 'ArrowDown' && index < suggestions.length - 1) {
-                        suggestionsRef.current.children[index + 1].focus();
-                      }
-                      if (e.key === 'ArrowUp' && index > 0) {
-                        suggestionsRef.current.children[index - 1].focus();
-                      }
-                      if (e.key === 'Escape') clearSearch();
-                    }}
-                    className="px-4 py-2 text-gray-800 hover:bg-gray-100 cursor-pointer"
-                    role="option"
-                    aria-selected={searchTerm === suggestion}
-                  >
-                    {suggestion}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="md:hidden">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              aria-label={t.categoryLabel}
-            >
-              {uniqueCategories.map(({ key, label }) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="hidden md:flex flex-wrap gap-2">
-            {uniqueCategories.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setSelectedCategory(key)}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition-all duration-200 ${
-                  selectedCategory === key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-                aria-label={`${t.categoryLabel}: ${label}`}
-                aria-pressed={selectedCategory === key}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="quizzes-grid" aria-live="polite">
-        {filteredQuizzes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
-            <svg className="w-20 h-20 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01m-.01 4h.01" />
-            </svg>
-            <h3 className="text-xl font-semibold text-gray-800 mb-3">
-              {searchTerm || selectedCategory !== 'all' || selectedTab !== 'all' ? t.noResults : t.noQuizzes}
-            </h3>
-            {searchTerm && (
-              <button
-                onClick={clearSearch}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-all duration-200"
-                aria-label={t.clearSearch}
-              >
-                {t.clearSearch}
-              </button>
-            )}
-            {selectedTab === 'aiGenerated' && filteredQuizzes.length === 0 && (
-              <NavLink
-                to="/quiz-generator"
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200"
-                aria-label={t.generateQuiz}
-              >
-                {t.generateQuiz}
-              </NavLink>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredQuizzes.map((quiz) => (
-              <QuizCard key={quiz.id} quiz={quiz} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {filteredQuizzes.length > 3 && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-4 right-4 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all duration-200"
-          aria-label={t.backToTop}
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-          </svg>
-        </button>
-      )}
-    </main>
-  );
+      {currentAttempts.error && <div className="ql-history-alert" role="status"><CircleHelp size={19} aria-hidden="true" /><p>{t.historyUnavailable}</p><button type="button" onClick={reload}>{t.retry}</button></div>}
+      <div className="ql-results"><p role="status">{loading ? t.loading : currentCatalog.error ? '' : `${number(filtered.length)} ${t.results}`}</p>{(filteredSelection || activeSpace !== 'all') && <button type="button" onClick={reset}>{t.reset}<X size={13} aria-hidden="true" /></button>}</div>
+      {loading ? <div className="ql-grid" aria-hidden="true">{[0, 1, 2].map(index => <div className="ql-skeleton" key={index}><div /><span /><span /><span /></div>)}</div> : currentCatalog.error ? <div className="ql-empty" role="alert"><RefreshCw size={34} aria-hidden="true" /><h3>{t.error}</h3><p>{t.errorHint}</p><button type="button" className="ql-button" onClick={reload}>{t.retry}<ArrowRight size={16} aria-hidden="true" /></button></div> : !filtered.length ? <div className="ql-empty"><Brain size={36} aria-hidden="true" /><h3>{filteredSelection ? t.noResults : activeSpace === 'personal' ? t.emptyPersonal : t.empty}</h3><p>{filteredSelection ? t.noResultsHint : activeSpace === 'personal' ? t.emptyPersonalHint : t.emptyHint}</p>{filteredSelection ? <button type="button" className="ql-button" onClick={reset}>{t.reset}</button> : <Link to="/quiz-generator" className="ql-button"><WandSparkles size={17} aria-hidden="true" />{t.generate}</Link>}</div> : <div id="quizzes-grid" className="ql-grid">{filtered.map(quiz => {
+        const record = historyReady ? history.byQuiz.get(quiz.id) : null;
+        const completed = Boolean(record);
+        const personal = quiz.visibility === 'private' && quiz.creatorId === uid;
+        const scope = quiz.visibility === 'shared' ? t.shared : personal ? t.private : quiz.visibility === 'unclassified' ? t.unclassified : t.privateAdmin;
+        const course = quizText(quiz.course, language);
+        return <article key={quiz.id} className={`ql-card${completed ? ' is-completed' : ''}`} aria-labelledby={`quiz-title-${quiz.id}`} data-quiz-id={quiz.id}>
+          <div className="ql-card-top"><span className={`ql-card-icon ql-icon-${quiz.category === 'cardiology' ? 'rose' : quiz.category === 'pharmacy' || quiz.category === 'pharmacology' ? 'teal' : 'blue'}`}><Brain size={25} strokeWidth={1.6} aria-hidden="true" /></span><span className={`ql-status${completed ? ' is-done' : ''}`}>{completed ? <CheckCircle2 size={13} aria-hidden="true" /> : null}{!historyReady ? currentAttempts.error ? t.historyUnknown : t.historyPending : completed ? t.completed : t.todo}</span></div>
+          <div className="ql-card-tags"><span>{categoryLabel(quiz)}</span>{quiz.difficulty && <span>{t.difficulty[quiz.difficulty]}</span>}{quiz.type === 'ai-generated' && <span className="ql-ai"><Sparkles size={11} aria-hidden="true" />{t.ai}</span>}</div>
+          <h3 id={`quiz-title-${quiz.id}`}>{title(quiz)}</h3><p className="ql-description">{quizText(quiz.description, language, t.noDescription)}</p>
+          {course && <p className="ql-course"><BookOpen size={13} aria-hidden="true" /><span>{t.course} : {course}</span></p>}
+          <div className="ql-card-info"><span><CircleHelp size={14} aria-hidden="true" />{number(quiz.questionCount)} {quiz.questionCount === 1 ? t.question : t.questions}</span>{quiz.semester && <span><GraduationCap size={14} aria-hidden="true" />{quiz.semester === 'all' ? t.general : `S${quiz.semester}`}</span>}</div>
+          <div className="ql-card-score"><span>{t.best}</span><strong>{!historyReady ? '—' : record?.bestScore !== null && record?.bestScore !== undefined ? `${number(record.bestScore)} %` : t.noScore}</strong></div>
+          <div className="ql-card-footer">{quiz.questionCount > 0 ? <Link to={`/quizzes/${encodeURIComponent(quiz.id)}`} className="ql-start">{completed ? t.again : t.start}<ArrowRight size={16} aria-hidden="true" /></Link> : <span className="ql-no-questions">{t.noQuestions}</span>}<span className="ql-scope" title={scope}>{quiz.visibility === 'shared' ? <BookOpen size={12} aria-hidden="true" /> : <FolderLock size={12} aria-hidden="true" />}{scope}</span></div>
+          {administrator && <div className="ql-publication"><ContentPublication collectionName="quizzes" item={quiz} language={language} onUpdated={reload} /></div>}
+        </article>;
+      })}</div>}
+    </section>
+    <aside className="ql-method"><span className="ql-method-icon"><Target size={27} aria-hidden="true" /></span><div><h2>{t.method}</h2><p>{t.methodHint}</p></div><Link to="/flashcards">{t.cards}<ArrowRight size={16} aria-hidden="true" /></Link></aside>
+  </div></div>;
 };
 
 export default Quizzes;
